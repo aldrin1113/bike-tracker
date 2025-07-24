@@ -1,0 +1,129 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Motorcycle Tracker v2</title>
+  <style>
+    body {
+      background-color: #121212;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    canvas {
+      display: block;
+      margin: 20px auto;
+    }
+    .gauge-container {
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+    }
+    #log {
+      margin-top: 20px;
+      max-height: 200px;
+      overflow-y: scroll;
+      background: #1e1e1e;
+      padding: 10px;
+      border-radius: 10px;
+      font-size: 14px;
+    }
+    #calibrateBtn {
+      margin: 10px;
+      padding: 8px 16px;
+      background: #03dac5;
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>🏍️ Motorcycle Tracker v2</h1>  <div class="gauge-container">
+    <canvas id="speedGauge" width="300" height="300"></canvas>
+    <canvas id="leanGauge" width="300" height="300"></canvas>
+  </div><button id="calibrateBtn">Calibrate Lean Zero</button>
+
+  <div id="log"></div>  <script>
+    let speed = 0;
+    let lean = 0;
+    let calibratedOffset = 0;
+
+    const speedCanvas = document.getElementById('speedGauge');
+    const leanCanvas = document.getElementById('leanGauge');
+    const speedCtx = speedCanvas.getContext('2d');
+    const leanCtx = leanCanvas.getContext('2d');
+    const logDiv = document.getElementById('log');
+    const calibrateBtn = document.getElementById('calibrateBtn');
+
+    function drawGauge(ctx, value, max, label, unit, color) {
+      ctx.clearRect(0, 0, 300, 300);
+      ctx.beginPath();
+      ctx.arc(150, 150, 120, Math.PI, 0);
+      ctx.lineWidth = 20;
+      ctx.strokeStyle = '#444';
+      ctx.stroke();
+
+      const angle = Math.PI + (Math.PI * value / max);
+      ctx.beginPath();
+      ctx.arc(150, 150, 120, Math.PI, angle);
+      ctx.strokeStyle = color;
+      ctx.stroke();
+
+      // Needle
+      const needleLength = 100;
+      const nx = 150 + needleLength * Math.cos(angle);
+      const ny = 150 + needleLength * Math.sin(angle);
+      ctx.beginPath();
+      ctx.moveTo(150, 150);
+      ctx.lineTo(nx, ny);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#fff';
+      ctx.stroke();
+
+      // Label
+      ctx.fillStyle = '#fff';
+      ctx.font = '20px Arial';
+      ctx.fillText(`${label}: ${Math.round(value)} ${unit}`, 75, 280);
+    }
+
+    function updateGauges() {
+      drawGauge(speedCtx, speed, 200, 'Speed', 'km/h', '#03a9f4');
+      drawGauge(leanCtx, lean + 90, 180, 'Lean', '°', '#f44336');
+    }
+
+    function logData() {
+      const time = new Date().toLocaleTimeString();
+      logDiv.innerHTML = `[${time}] Speed: ${speed.toFixed(1)} km/h | Lean: ${lean.toFixed(1)}°<br>` + logDiv.innerHTML;
+    }
+
+    navigator.geolocation.watchPosition(
+      (pos) => {
+        if (pos.coords.speed !== null) {
+          speed = pos.coords.speed * 3.6;
+          updateGauges();
+          logData();
+        }
+      },
+      (err) => console.error(err),
+      { enableHighAccuracy: true }
+    );
+
+    window.addEventListener('deviceorientation', (event) => {
+      let rawLean = event.gamma; // side tilt
+
+      if (rawLean > 90) rawLean = 90;
+      if (rawLean < -90) rawLean = -90;
+
+      lean = rawLean - calibratedOffset;
+      updateGauges();
+      logData();
+    });
+
+    calibrateBtn.addEventListener('click', () => {
+      calibratedOffset = lean;
+    });
+  </script></body>
+</html>
