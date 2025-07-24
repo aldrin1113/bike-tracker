@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Motorcycle Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #111; color: #eee; }
+    h1 { font-size: 1.4em; }
+    .log { white-space: pre-wrap; font-size: 0.9em; background: #222; padding: 10px; border-radius: 8px; margin-top: 20px; max-height: 200px; overflow-y: auto; }
+    button { margin-top: 10px; padding: 10px; font-size: 1em; border: none; border-radius: 5px; background: #444; color: white; margin-right: 10px; }
+    canvas { background: #222; margin-top: 20px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+
+  <h1>🏍️ Motorcycle Speed & Lean Angle Tracker</h1>
+  <p><b>Speed:</b> <span id="speed">--</span> km/h</p>
+  <p><b>Lean Angle:</b> <span id="lean">--</span>°</p>
+
+  <button onclick="toggleLogging()">Start Logging</button>
+  <button onclick="downloadLog()">Download Log</button>
+
+  <canvas id="rideChart" width="100%" height="250"></canvas>
+
+  <div class="log" id="log"></div>
+
+  <script>
+    let watchId, logging = false;
+    let logData = [];
+    const speedElem = document.getElementById("speed");
+    const leanElem = document.getElementById("lean");
+    const logElem = document.getElementById("log");
+
+    // Chart setup
+    const ctx = document.getElementById('rideChart').getContext('2d');
+    const rideChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'Speed (km/h)',
+            borderColor: '#4caf50',
+            data: [],
+            yAxisID: 'y',
+          },
+          {
+            label: 'Lean Angle (°)',
+            borderColor: '#f44336',
+            data: [],
+            yAxisID: 'y1',
+          }
+        ]
+      },
+      options: {
+        animation: false,
+        responsive: true,
+        scales: {
+          y: {
+            position: 'left',
+            title: { display: true, text: 'Speed' },
+            beginAtZero: true
+          },
+          y1: {
+            position: 'right',
+            title: { display: true, text: 'Lean Angle' },
+            beginAtZero: true,
+            grid: { drawOnChartArea: false }
+          }
+        }
+      }
+    });
+
+    function toDegrees(rad) {
+      return rad * (180 / Math.PI);
+    }
+
+    function startTracking() {
+      if (navigator.geolocation) {
+        watchId = navigator.geolocation.watchPosition(pos => {
+          const speed = pos.coords.speed || 0;
+          const kmh = (speed * 3.6).toFixed(1);
+          speedElem.textContent = kmh;
+
+          if (logging) {
+            const entry = {
+              time: new Date().toISOString(),
+              speed: kmh,
+              lean: currentLean.toFixed(1)
+            };
+            logData.push(entry);
+            updateLog(entry);
+            updateChart(entry);
+          }
+        }, err => {
+          alert("GPS error: " + err.message);
+        }, {
+          enableHighAccuracy: true,
+          maximumAge: 1000
+        });
+      } else {
+        alert("Geolocation not supported");
+      }
+    }
+
+    let currentLean = 0;
+    window.addEventListener('deviceorientation', function(event) {
+      const gamma = event.gamma || 0;
+      currentLean = gamma;
+      leanElem.textContent = gamma.toFixed(1);
+    });
+
+    function toggleLogging() {
+      logging = !logging;
+      document.querySelector("button").textContent = logging ? "Stop Logging" : "Start Logging";
+    }
+
+    function updateLog(entry) {
+      logElem.textContent += `${entry.time} | Speed: ${entry.speed} km/h | Lean: ${entry.lean}°\n`;
+      logElem.scrollTop = logElem.scrollHeight;
+    }
+
+    function updateChart(entry) {
+      rideChart.data.labels.push(new Date(entry.time).toLocaleTimeString());
+      rideChart.data.datasets[0].data.push(entry.speed);
+      rideChart.data.datasets[1].data.push(entry.lean);
+      rideChart.update();
+    }
+
+    function downloadLog() {
+      if (logData.length === 0) {
+        alert("No data to download.");
+        return;
+      }
+      const text = logData.map(e => `${e.time} | Speed: ${e.speed} km/h | Lean: ${e.lean}°`).join("\n");
+      const blob = new Blob([text], { type: "text/plain" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "motorcycle_log.txt";
+      a.click();
+    }
+
+    startTracking();
+  </script>
+
+</body>
+</html>
