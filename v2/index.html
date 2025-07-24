@@ -2,12 +2,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>🏍️ Motorcycle Tracker v3.1</title>
+  <title>🏍️ Motorcycle Tracker v3.2</title>
   <style>
     body {
       margin: 0;
-      font-family: sans-serif;
-      background-color: #121212;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #0e0e0e;
       color: white;
       display: flex;
       flex-direction: column;
@@ -15,18 +15,23 @@
       padding: 1rem;
     }
     h1 {
-      font-size: 1.5rem;
+      font-size: 1.6rem;
       margin-bottom: 1rem;
+      color: #00ffcc;
     }
     .gauge {
-      width: 200px;
-      height: 100px;
+      width: 220px;
+      height: 110px;
       position: relative;
       margin: 1rem;
+      background: #1f1f1f;
+      border-radius: 110px 110px 0 0;
+      overflow: hidden;
+      border: 2px solid #333;
     }
-    .gauge .needle {
+    .needle {
       width: 4px;
-      height: 100px;
+      height: 110px;
       background-color: red;
       position: absolute;
       bottom: 0;
@@ -36,41 +41,53 @@
       transition: transform 0.1s linear;
     }
     .label {
-      margin-top: 0.5rem;
+      margin-top: 0.3rem;
       font-size: 1.2rem;
     }
     .speed-display, .lean-display {
-      font-size: 1.5rem;
-      margin: 1rem 0;
+      font-size: 1.6rem;
+      margin: 0.5rem 0;
     }
-    .log {
-      width: 90%;
-      max-height: 200px;
-      overflow-y: auto;
-      background: #1e1e1e;
-      padding: 1rem;
+    .btn-container {
+      margin-top: 1rem;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    button {
+      padding: 0.6rem 1.2rem;
+      font-size: 1rem;
+      border: none;
       border-radius: 8px;
-      font-size: 0.9rem;
+      background-color: #00bfa6;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #009f8a;
     }
   </style>
 </head>
 <body>
-  <h1>🏍️ Motorcycle Tracker v3.1</h1>  <div class="gauge" id="leanGauge">
+  <h1>🏍️ Motorcycle Tracker v3.2</h1>  <div class="gauge" id="leanGauge">
     <div class="needle" id="leanNeedle"></div>
   </div>
   <div class="lean-display">Lean Angle: <span id="leanValue">0</span>°</div>  <div class="gauge" id="speedGauge">
     <div class="needle" id="speedNeedle"></div>
   </div>
-  <div class="speed-display">Speed: <span id="speedValue">0</span> km/h</div>  <div class="log" id="logBox"></div>  <script>
+  <div class="speed-display">Speed: <span id="speedValue">0</span> km/h</div>  <div class="btn-container">
+    <button onclick="calibrateLean()">Calibrate Lean</button>
+    <button onclick="downloadLog()">Download Log</button>
+  </div>  <script>
     let speedSamples = [];
-    let logBox = document.getElementById("logBox");
+    let logs = [];
+    let leanOffset = 0;
 
-    // GPS SPEED
     function updateSpeed(position) {
       let speed = position.coords.speed || 0;
       speed = speed * 3.6; // m/s to km/h
 
-      // Average last 5 samples
       speedSamples.push(speed);
       if (speedSamples.length > 5) speedSamples.shift();
       const avgSpeed = speedSamples.reduce((a, b) => a + b, 0) / speedSamples.length;
@@ -78,11 +95,11 @@
       document.getElementById("speedValue").textContent = avgSpeed.toFixed(1);
       document.getElementById("speedNeedle").style.transform = `rotate(${Math.min(avgSpeed, 180)}deg)`;
 
-      logBox.innerHTML += `<div>Speed: ${avgSpeed.toFixed(1)} km/h</div>`;
+      logs.push(`Speed: ${avgSpeed.toFixed(1)} km/h`);
     }
 
     function geoError(err) {
-      logBox.innerHTML += `<div style='color:red;'>GPS Error: ${err.message}</div>`;
+      logs.push(`GPS Error: ${err.message}`);
     }
 
     navigator.geolocation.watchPosition(updateSpeed, geoError, {
@@ -90,9 +107,9 @@
       maximumAge: 1000
     });
 
-    // LEAN ANGLE
     window.addEventListener("deviceorientation", (event) => {
-      let gamma = event.gamma || 0; // side tilt
+      let gamma = event.gamma || 0;
+      gamma -= leanOffset;
       gamma = Math.max(Math.min(gamma, 90), -90);
 
       const angle = Math.abs(gamma);
@@ -101,7 +118,26 @@
       document.getElementById("leanValue").textContent = angle.toFixed(1);
       document.getElementById("leanNeedle").style.transform = `rotate(${direction * angle}deg)`;
 
-      logBox.innerHTML += `<div>Lean: ${angle.toFixed(1)}°</div>`;
+      logs.push(`Lean: ${angle.toFixed(1)}°`);
     });
+
+    function calibrateLean() {
+      window.addEventListener("deviceorientation", function handler(event) {
+        leanOffset = event.gamma || 0;
+        alert(`Calibrated with offset: ${leanOffset.toFixed(1)}°`);
+        window.removeEventListener("deviceorientation", handler);
+      });
+    }
+
+    function downloadLog() {
+      const blob = new Blob([logs.join("\n")], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "ride-log.txt";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
   </script></body>
 </html>
