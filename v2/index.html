@@ -2,100 +2,197 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Motorcycle Tracker</title>
+  <title>Motorcycle Tracker v3</title>
   <style>
     body {
-      background: #121212;
-      color: #fff;
-      font-family: sans-serif;
-      text-align: center;
-      padding: 10px;
-    }
-    .gauge-container {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #0d1117;
+      color: #c9d1d9;
       display: flex;
-      justify-content: space-around;
-      flex-wrap: wrap;
-      margin-top: 30px;
-    }
-    canvas {
-      background: #1f1f1f;
-      border-radius: 50%;
-      margin: 10px;
-    }
-    #log {
-      margin-top: 20px;
-      max-height: 200px;
-      overflow-y: auto;
-      background: #222;
-      padding: 10px;
-      border-radius: 10px;
-      font-size: 14px;
-    }
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }h1 {
+  margin-bottom: 10px;
+}
+
+.gauges {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 30px;
+  margin-bottom: 20px;
+}
+
+canvas {
+  background-color: #161b22;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #58a6ff33;
+}
+
+.log {
+  width: 90%;
+  max-width: 800px;
+  background: #161b22;
+  padding: 10px;
+  border-radius: 8px;
+  overflow-y: auto;
+  max-height: 200px;
+  font-size: 0.9rem;
+  margin-top: 20px;
+}
+
+.controls {
+  margin: 20px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+button {
+  background-color: #238636;
+  border: none;
+  padding: 10px 16px;
+  color: white;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #2ea043;
+}
+
   </style>
 </head>
 <body>
-  <h1>🏍️ Motorcycle Tracker</h1>
-  <div class="gauge-container">
-    <canvas id="speedGauge" width="200" height="200"></canvas>
-    <canvas id="leanGauge" width="200" height="200"></canvas>
+  <h1>🏍️ Motorcycle Tracker v3</h1>
+  <div class="gauges">
+    <canvas id="speedCanvas" width="200" height="200"></canvas>
+    <canvas id="leanCanvas" width="200" height="200"></canvas>
   </div>
-  <div id="log"></div>
-  <script>
-    const speedCanvas = document.getElementById('speedGauge');
-    const leanCanvas = document.getElementById('leanGauge');
-    const speedCtx = speedCanvas.getContext('2d');
-    const leanCtx = leanCanvas.getContext('2d');
-    const logEl = document.getElementById('log');function drawGauge(ctx, value, max, label) {
-  ctx.clearRect(0, 0, 200, 200);
-  ctx.beginPath();
-  ctx.arc(100, 100, 90, 0.75 * Math.PI, 0.25 * Math.PI, false);
-  ctx.strokeStyle = '#555';
-  ctx.lineWidth = 20;
-  ctx.stroke();
+  <div class="controls">
+    <button onclick="calibrateLean()">Calibrate Lean</button>
+    <button onclick="downloadCSV()">Download Log (CSV)</button>
+  </div>
+  <div class="log" id="log"></div>  <script>
+    const speedCanvas = document.getElementById('speedCanvas');
+    const leanCanvas = document.getElementById('leanCanvas');
+    const logDiv = document.getElementById('log');
 
-  const angle = 0.75 * Math.PI + (1.5 * Math.PI) * (value / max);
-  ctx.beginPath();
-  ctx.moveTo(100, 100);
-  ctx.lineTo(100 + 70 * Math.cos(angle), 100 + 70 * Math.sin(angle));
-  ctx.strokeStyle = 'lime';
-  ctx.lineWidth = 6;
-  ctx.stroke();
+    let speedCtx = speedCanvas.getContext('2d');
+    let leanCtx = leanCanvas.getContext('2d');
 
-  ctx.fillStyle = '#fff';
-  ctx.font = '18px sans-serif';
-  ctx.fillText(`${label}`, 70, 100);
-  ctx.fillText(`${Math.round(value)}${label === 'Speed' ? ' km/h' : '°'}`, 55, 130);
-}
+    let speedHistory = [];
+    let leanOffset = 0;
+    let logs = [];
+    let maxLean = 0;
+    let maxSpeed = 0;
 
-function update(speed, lean) {
-  drawGauge(speedCtx, speed, 200, 'Speed');
-  drawGauge(leanCtx, Math.abs(lean), 90, 'Lean');
+    function drawGauge(ctx, label, value, max, unit, color) {
+      ctx.clearRect(0, 0, 200, 200);
+      ctx.save();
+      ctx.translate(100, 100);
 
-  const now = new Date().toLocaleTimeString();
-  const logLine = `${now} - Speed: ${speed.toFixed(1)} km/h, Lean: ${lean.toFixed(1)}°`;
-  logEl.innerHTML = logLine + '<br>' + logEl.innerHTML;
-}
+      // Draw base arc
+      ctx.beginPath();
+      ctx.strokeStyle = '#30363d';
+      ctx.lineWidth = 10;
+      ctx.arc(0, 0, 80, Math.PI, 0);
+      ctx.stroke();
 
-if (navigator.geolocation && window.DeviceMotionEvent) {
-  navigator.geolocation.watchPosition(
-    position => {
-      const speed = (position.coords.speed || 0) * 3.6; // m/s to km/h
-      window.currentSpeed = speed;
-    },
-    err => alert("Location error: " + err.message),
-    { enableHighAccuracy: true }
-  );
+      // Draw active arc
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 10;
+      const endAngle = Math.PI + (Math.PI * value / max);
+      ctx.arc(0, 0, 80, Math.PI, endAngle);
+      ctx.stroke();
 
-  window.addEventListener('devicemotion', e => {
-    const ax = e.accelerationIncludingGravity.x;
-    const ay = e.accelerationIncludingGravity.y;
-    const lean = Math.atan2(ax, ay) * (180 / Math.PI);
-    update(window.currentSpeed || 0, lean);
-  });
-} else {
-  alert('Geolocation or motion sensor not supported.');
-}
+      // Draw needle
+      const angle = Math.PI + (Math.PI * value / max);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(80 * Math.cos(angle), 80 * Math.sin(angle));
+      ctx.strokeStyle = '#f85149';
+      ctx.lineWidth = 3;
+      ctx.stroke();
 
-  </script>
-</body>
+      // Draw text
+      ctx.fillStyle = '#c9d1d9';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText(`${value.toFixed(0)} ${unit}`, -40, 10);
+      ctx.fillText(label, -30, 30);
+      ctx.restore();
+    }
+
+    function updateGauges() {
+      let avgSpeed = speedHistory.reduce((a, b) => a + b, 0) / speedHistory.length;
+      drawGauge(speedCtx, 'Speed', avgSpeed, 200, 'km/h', '#58a6ff');
+      drawGauge(leanCtx, 'Lean', Math.abs(currentLean), 90, '°', '#ffa657');
+    }
+
+    function logData() {
+      let timestamp = new Date().toLocaleTimeString();
+      let avgSpeed = speedHistory.reduce((a, b) => a + b, 0) / speedHistory.length;
+      let entry = `${timestamp} | Speed: ${avgSpeed.toFixed(1)} km/h | Lean: ${Math.abs(currentLean).toFixed(1)}°`;
+      logs.push(entry);
+      logDiv.innerHTML = logs.slice(-20).map(l => `<div>${l}</div>`).join('');
+
+      maxLean = Math.max(maxLean, Math.abs(currentLean));
+      maxSpeed = Math.max(maxSpeed, avgSpeed);
+
+      if (Math.abs(currentLean) > 45 && !alerted) {
+        new Audio('https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg').play();
+        alerted = true;
+      } else if (Math.abs(currentLean) <= 45) {
+        alerted = false;
+      }
+    }
+
+    function downloadCSV() {
+      let csv = 'Time,Speed (km/h),Lean (°)\n';
+      csv += logs.map(l => {
+        const parts = l.split('|').map(p => p.trim());
+        return `${parts[0]},${parts[1].split(': ')[1]},${parts[2].split(': ')[1]}`;
+      }).join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'ride-log.csv';
+      a.click();
+    }
+
+    function calibrateLean() {
+      leanOffset = currentLean;
+    }
+
+    let alerted = false;
+    let currentLean = 0;
+
+    navigator.geolocation.watchPosition(
+      (pos) => {
+        let spd = pos.coords.speed || 0;
+        let kmh = spd * 3.6;
+        if (speedHistory.length >= 5) speedHistory.shift();
+        speedHistory.push(kmh);
+        updateGauges();
+        logData();
+      },
+      (err) => {
+        console.error(err);
+      },
+      { enableHighAccuracy: true, maximumAge: 1000 }
+    );
+
+    window.addEventListener('deviceorientation', (event) => {
+      let rawLean = event.gamma;
+      rawLean = Math.max(-90, Math.min(90, rawLean));
+      currentLean = rawLean - leanOffset;
+    });
+  </script></body>
 </html>
