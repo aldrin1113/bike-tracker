@@ -3,6 +3,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>🏍️ Motorcycle Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     body {
       margin: 0;
@@ -15,183 +16,151 @@
       padding: 1rem;
     }
     h1 {
-      font-size: 1.8rem;
-      margin-bottom: 1rem;
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
       color: #58a6ff;
     }
-    .gauge, .bar-graph {
-      position: relative;
-      margin: 1rem;
-    }
-    .bar-graph {
-      width: 50px;
-      height: 150px;
-      background: #222;
-      border-radius: 10px;
+    #map {
+      height: 250px;
+      width: 90%;
+      margin: 1rem auto;
+      border-radius: 8px;
       overflow: hidden;
-      display: flex;
-      flex-direction: column-reverse;
-      align-items: center;
-      justify-content: flex-start;
-      border: 2px solid #444;
+    }
+    .info {
+      margin: 0.5rem 0;
+      font-size: 1.1rem;
     }
     .bar {
+      width: 30px;
+      height: 120px;
+      background: #111;
+      border: 2px solid #333;
+      position: relative;
+      margin-bottom: 1rem;
+    }
+    .bar-fill {
+      position: absolute;
+      bottom: 0;
       width: 100%;
-      background: linear-gradient(to top, yellow, red);
+      background: linear-gradient(to top, #00ff00, yellow, red);
       transition: height 0.3s ease-in-out;
     }
-    .bar-label {
-      margin-top: 0.5rem;
-      font-size: 1.5rem;
-      font-weight: bold;
-    }
-    .display {
-      font-size: 1.5rem;
-      margin: 0.5rem 0;
-    }
-    .button-group {
+    .controls {
       display: flex;
       flex-direction: column;
+      align-items: flex-start;
       gap: 0.5rem;
       position: fixed;
-      right: 1rem;
-      top: 5rem;
+      top: 10px;
+      right: 10px;
     }
     button {
-      background: #238636;
+      padding: 0.3rem 0.6rem;
+      background-color: #238636;
       color: white;
-      padding: 0.4rem 0.6rem;
       border: none;
-      border-radius: 6px;
-      cursor: pointer;
+      border-radius: 4px;
       font-size: 0.9rem;
+      cursor: pointer;
     }
-    #map {
-      width: 90vw;
-      height: 200px;
-      margin: 1rem 0;
+    button:hover {
+      background-color: #2ea043;
     }
   </style>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
-  <h1>🏍️ Motorcycle Tracker</h1>  <div class="bar-graph">
-    <div class="bar" id="speedBar" style="height: 0%"></div>
-  </div>
-  <div class="bar-label" id="speedLabel">0 km/h</div>  <div class="display">Lean Angle: <span id="leanValue">0</span>°</div>
-  <div class="display">Tyre Grip: <span id="gripValue">Good</span></div>
-  <div class="display">Weather: <span id="weather">--</span></div>  <div id="map"></div>  <div class="button-group">
+  <h1>🏍️ Motorcycle Tracker</h1>  <div id="map"></div>  <div class="info">Speed: <strong id="speedDisplay">0</strong> km/h</div>
+  <div class="bar"><div class="bar-fill" id="speedBar" style="height: 0%"></div></div>  <div class="info">Lean: <strong id="leanDisplay">0</strong>°</div>
+  <div class="info">Grip: <strong id="gripDisplay">Good</strong></div>  <div class="controls">
     <button onclick="calibrateLean()">Calibrate Lean</button>
-    <button onclick="startLogging()">Start Log</button>
-    <button onclick="stopLogging()">Stop Log</button>
+    <button onclick="startLog()">Start Log</button>
+    <button onclick="stopLog()">Stop Log</button>
     <button onclick="clearLog()">Clear Log</button>
     <button onclick="downloadCSV()">Download CSV</button>
   </div>  <script>
-    let speedSamples = [];
-    let logData = [];
-    let loggingEnabled = false;
-    let logTimer;
     let leanOffset = 0;
-    let currentSpeed = 0;
-    let currentLean = 0;
-    let grip = 'Good';
-
-    function updateSpeed(position) {
-      let speed = position.coords.speed || 0;
-      speed = speed * 3.6; // m/s to km/h
-
-      speedSamples.push(speed);
-      if (speedSamples.length > 5) speedSamples.shift();
-      const avgSpeed = speedSamples.reduce((a, b) => a + b, 0) / speedSamples.length;
-
-      currentSpeed = Math.max(0, avgSpeed.toFixed(1));
-      const barHeight = Math.min(currentSpeed, 120);
-
-      document.getElementById("speedBar").style.height = `${barHeight * 100 / 120}%`;
-      document.getElementById("speedLabel").textContent = `${Math.round(currentSpeed)} km/h`;
-    }
-
-    function geoError(err) {
-      console.warn("GPS Error:", err);
-    }
-
-    navigator.geolocation.watchPosition(updateSpeed, geoError, {
-      enableHighAccuracy: true,
-      maximumAge: 1000,
-      timeout: 5000
-    });
-
-    window.addEventListener("deviceorientation", (event) => {
-      let gamma = event.gamma || 0;
-      gamma = Math.max(Math.min(gamma, 90), -90);
-
-      let correctedGamma = gamma - leanOffset;
-      correctedGamma = Math.max(Math.min(correctedGamma, 90), -90);
-
-      const angle = Math.abs(correctedGamma);
-      currentLean = angle.toFixed(1);
-
-      grip = angle < 30 ? 'Good' : angle < 60 ? 'Medium' : 'Low';
-
-      document.getElementById("leanValue").textContent = currentLean;
-      document.getElementById("gripValue").textContent = grip;
-    });
+    let logging = false;
+    let log = [];
+    let map, marker;
+    let logInterval;
+    let speed = 0;
+    let lean = 0;
 
     function calibrateLean() {
       window.addEventListener("deviceorientation", function temp(e) {
         leanOffset = e.gamma || 0;
-        alert("Lean calibrated at: " + leanOffset.toFixed(1) + "°");
+        alert("Lean calibrated to: " + leanOffset.toFixed(1));
         window.removeEventListener("deviceorientation", temp);
       });
     }
 
-    function startLogging() {
-      loggingEnabled = true;
-      logData = [];
-      logTimer = setInterval(() => {
-        const time = new Date().toISOString();
-        logData.push(`${time};${Math.round(currentSpeed)};${currentLean};${grip}`);
+    function startLog() {
+      logging = true;
+      log = [];
+      if (logInterval) clearInterval(logInterval);
+      logInterval = setInterval(() => {
+        if (!logging) return;
+        const direction = lean > 0 ? "Right" : "Left";
+        const grip = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
+        log.push(`${Math.round(speed)};${Math.abs(lean).toFixed(1)}° ${direction};${grip}`);
       }, 3000);
     }
 
-    function stopLogging() {
-      loggingEnabled = false;
-      clearInterval(logTimer);
+    function stopLog() {
+      logging = false;
+      clearInterval(logInterval);
     }
 
     function clearLog() {
-      logData = [];
+      log = [];
     }
 
     function downloadCSV() {
-      if (!logData.length) return alert("No log data to download.");
-      const csvContent = "Time;Speed;Lean Angle;Tyre Grip\n" + logData.join("\n");
-      const blob = new Blob([csvContent], { type: "text/csv" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "bike_log.csv";
-      link.click();
+      if (!log.length) return alert("No logs to download");
+      const blob = new Blob(["Speed;Lean Angle;Grip\n" + log.join("\n")], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "tracker_log.csv";
+      a.click();
     }
 
-    // Initialize map
-    let map, marker;
-    function initMap() {
-      map = new google.maps.Map(document.getElementById("map"), {
-        center: { lat: 10, lng: 76 },
-        zoom: 14,
-        disableDefaultUI: true,
-        styles: [{ elementType: 'geometry', stylers: [{ color: '#1d2c4d' }] }]
-      });
-      marker = new google.maps.Marker({ position: map.getCenter(), map });
-
-      navigator.geolocation.watchPosition((position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        const pos = { lat, lng };
-        map.setCenter(pos);
-        marker.setPosition(pos);
-      }, geoError, { enableHighAccuracy: true });
+    function updateDisplay() {
+      document.getElementById("speedDisplay").textContent = Math.round(speed);
+      document.getElementById("leanDisplay").textContent = Math.abs(lean).toFixed(1);
+      document.getElementById("gripDisplay").textContent = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
+      document.getElementById("speedBar").style.height = Math.min(speed, 120) + "%";
     }
 
-    window.initMap = initMap;
-  </script>  <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap"></script></body>
+    navigator.geolocation.watchPosition(
+      (position) => {
+        speed = (position.coords.speed || 0) * 3.6;
+        if (!map) {
+          map = L.map('map').setView([position.coords.latitude, position.coords.longitude], 15);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+          }).addTo(map);
+          marker = L.marker([position.coords.latitude, position.coords.longitude]).addTo(map);
+        } else {
+          const latlng = [position.coords.latitude, position.coords.longitude];
+          marker.setLatLng(latlng);
+          map.setView(latlng);
+        }
+        updateDisplay();
+      },
+      (err) => console.warn("GPS error:", err),
+      {
+        enableHighAccuracy: true,
+        maximumAge: 1000,
+        timeout: 5000,
+      }
+    );
+
+    window.addEventListener("deviceorientation", (e) => {
+      lean = (e.gamma || 0) - leanOffset;
+      updateDisplay();
+    });
+  </script></body>
 </html>
