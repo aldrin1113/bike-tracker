@@ -5,8 +5,8 @@
   <title>🏍️ Motorcycle Tracker v4</title>
   <link
     rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-sA+e2jzFv+dLHXxvbbvF6KJtLBRvxJ0VYFvLrGkRm6E="
+    href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+    integrity="sha384-sA+zC3WNV36Kz0kMktN3vDbmkDe1N1Ol3jWaCgI6wAE0vRtuGgxpiEDyTg2JpUfZ"
     crossorigin=""
   />
   <style>
@@ -25,18 +25,11 @@
       margin-bottom: 1rem;
       color: #58a6ff;
     }
-    .container {
-      display: flex;
-      flex-direction: row;
-      flex-wrap: wrap;
-      justify-content: center;
-      width: 100%;
-    }
-    .metrics {
+    .dashboard {
       display: flex;
       flex-direction: column;
       align-items: center;
-      flex: 1;
+      width: 100%;
     }
     .gauge {
       width: 200px;
@@ -60,29 +53,28 @@
     }
     .display {
       font-size: 1.5rem;
-      margin: 0.2rem 0;
+      margin: 0.5rem 0;
     }
     #map {
-      height: 250px;
-      width: 90%;
-      border: 2px solid #444;
+      height: 300px;
+      width: 100%;
       margin-top: 1rem;
-      border-radius: 8px;
+      border: 2px solid #333;
     }
     .button-group {
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
-      margin-left: 1rem;
+      margin: 1rem 0;
     }
     button {
       background: #238636;
       color: white;
-      padding: 0.4rem 0.8rem;
+      padding: 0.5rem 1rem;
       border: none;
       border-radius: 6px;
       cursor: pointer;
-      font-size: 0.9rem;
+      font-size: 1rem;
       transition: background 0.3s;
     }
     button:hover {
@@ -91,68 +83,69 @@
   </style>
 </head>
 <body>
-  <h1>🏍️ Motorcycle Tracker v4.2</h1>
-  <div class="container">
-    <div class="metrics">
-      <div class="gauge" id="leanGauge">
-        <div class="needle" id="leanNeedle"></div>
-      </div>
-      <div class="display">Lean: <span id="leanValue">0</span>°</div><div class="gauge" id="speedGauge">
-    <div class="needle" id="speedNeedle"></div>
-  </div>
-  <div class="display">Speed: <span id="speedValue">0</span> km/h</div>
-
-  <div class="display">Tyre Grip: <span id="gripValue">0%</span></div>
+  <h1>🏍️ Motorcycle Tracker v4</h1>
+  <div class="dashboard">
+    <div class="gauge" id="leanGauge">
+      <div class="needle" id="leanNeedle"></div>
+    </div>
+    <div class="display">Lean Angle: <span id="leanValue">0</span>°</div><div class="gauge" id="speedGauge">
+  <div class="needle" id="speedNeedle"></div>
 </div>
+<div class="display">Speed: <span id="speedValue">0</span> km/h</div>
+
 <div class="button-group">
   <button onclick="calibrateLean()">Calibrate Lean</button>
   <button onclick="startLogging()">Start Log</button>
   <button onclick="stopLogging()">Stop Log</button>
   <button onclick="clearLog()">Clear Log</button>
-  <button onclick="downloadCSV()">Download CSV</button>
+  <button onclick="downloadLog()">Download Log</button>
 </div>
 
-  </div>  <div id="map"></div>  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>  <script>
-    let speedSamples = [], logData = [], loggingEnabled = false;
+<div id="map"></div>
+
+  </div>  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+    integrity="sha384-htl8L7dQuTegGQnC/UeMzZ2ACwY4ZrRmZqCGErT9ZKzyR+S3t6zQGgT+xJd+g1UW"
+    crossorigin=""></script>  <script>
+    let speedSamples = [];
+    let logData = [];
+    let loggingEnabled = false;
     let leanOffset = 0;
     let routeCoords = [];
-    const gripDisplay = document.getElementById("gripValue");
+    let polyline;
 
     const map = L.map('map').setView([0, 0], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 18
+      maxZoom: 18,
+      attribution: '© OpenStreetMap contributors'
     }).addTo(map);
-    const routeLine = L.polyline(routeCoords, { color: 'lime' }).addTo(map);
-    let marker = L.marker([0, 0]).addTo(map);
+    polyline = L.polyline(routeCoords, { color: 'red' }).addTo(map);
 
     function updateSpeed(position) {
-      let speed = (position.coords.speed || 0) * 3.6;
+      let speed = position.coords.speed || 0;
+      speed = speed * 3.6;
       speedSamples.push(speed);
       if (speedSamples.length > 10) speedSamples.shift();
       const avgSpeed = speedSamples.reduce((a, b) => a + b, 0) / speedSamples.length;
-      const displaySpeed = Math.max(0, avgSpeed.toFixed(1));
 
+      const displaySpeed = Math.max(0, avgSpeed.toFixed(1));
       document.getElementById("speedValue").textContent = displaySpeed;
       document.getElementById("speedNeedle").style.transform = `rotate(${Math.min(avgSpeed * 1.5, 180)}deg)`;
 
-      if (loggingEnabled) logData.push(`${new Date().toISOString()};${displaySpeed};`);
-    }
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      const currentPos = [lat, lng];
+      routeCoords.push(currentPos);
+      polyline.setLatLngs(routeCoords);
+      map.setView(currentPos, 15);
 
-    function geoSuccess(position) {
-      const { latitude, longitude } = position.coords;
-      const latlng = [latitude, longitude];
-      marker.setLatLng(latlng);
-      routeCoords.push(latlng);
-      routeLine.setLatLngs(routeCoords);
-      map.setView(latlng);
-      updateSpeed(position);
+      if (loggingEnabled) logData.push(`Speed: ${displaySpeed} km/h; Lat: ${lat}; Lng: ${lng}`);
     }
 
     function geoError(err) {
       console.warn("GPS Error:", err);
     }
 
-    navigator.geolocation.watchPosition(geoSuccess, geoError, {
+    navigator.geolocation.watchPosition(updateSpeed, geoError, {
       enableHighAccuracy: true,
       maximumAge: 1000,
       timeout: 5000
@@ -161,29 +154,23 @@
     window.addEventListener("deviceorientation", (event) => {
       let gamma = event.gamma || 0;
       gamma = Math.max(Math.min(gamma, 90), -90);
-      let corrected = gamma - leanOffset;
-      corrected = Math.max(Math.min(corrected, 90), -90);
 
-      const angle = Math.abs(corrected);
-      const direction = corrected > 0 ? 1 : -1;
+      let correctedGamma = gamma - leanOffset;
+      correctedGamma = Math.max(Math.min(correctedGamma, 90), -90);
+
+      const angle = Math.abs(correctedGamma);
+      const direction = correctedGamma > 0 ? 1 : -1;
+
       document.getElementById("leanValue").textContent = angle.toFixed(1);
       document.getElementById("leanNeedle").style.transform = `rotate(${direction * angle}deg)`;
 
-      // Estimate grip: assume grip % reduces as lean or speed increases
-      const avgSpeed = speedSamples.length ? speedSamples.reduce((a, b) => a + b, 0) / speedSamples.length : 0;
-      const grip = Math.max(0, 100 - (avgSpeed * 0.7 + angle * 0.8));
-      gripDisplay.textContent = `${grip.toFixed(1)}%`;
-
-      if (loggingEnabled && logData.length) {
-        let lastEntry = logData.pop();
-        logData.push(lastEntry + `${direction > 0 ? 'Right' : 'Left'};${angle.toFixed(1)}`);
-      }
+      if (loggingEnabled) logData.push(`Lean: ${angle.toFixed(1)}°`);
     });
 
     function calibrateLean() {
       window.addEventListener("deviceorientation", function temp(e) {
         leanOffset = e.gamma || 0;
-        alert("Calibrated at: " + leanOffset.toFixed(1) + "°");
+        alert("Lean calibrated at: " + leanOffset.toFixed(1) + "°");
         window.removeEventListener("deviceorientation", temp);
       });
     }
@@ -204,12 +191,13 @@
       alert("Log cleared");
     }
 
-    function downloadCSV() {
-      if (!logData.length) return alert("No data to download.");
-      const blob = new Blob(["Time;Speed(km/h);LeanDir;Lean(°)\n" + logData.join("\n")], { type: "text/csv" });
+    function downloadLog() {
+      if (!logData.length) return alert("No log data to download.");
+      const csv = logData.join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      link.download = "tracker_log.csv";
+      link.download = "bike_log.csv";
       link.click();
     }
   </script></body>
