@@ -149,6 +149,11 @@
       });
     }
 
+    function getTimeString() {
+      const now = new Date();
+      return now.toLocaleTimeString();
+    }
+
     function startLog() {
       logging = true;
       log = [];
@@ -157,8 +162,9 @@
         if (!logging) return;
         const direction = lean > 0 ? "Right" : "Left";
         const grip = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
-        log.push(`${Math.round(speed)};${Math.abs(lean).toFixed(1)}° ${direction};${grip}`);
-      }, 5000); // less frequent to save battery
+        const entry = `${getTimeString()};${Math.round(speed)};${Math.abs(lean).toFixed(1)}° ${direction};${grip}`;
+        log.push(entry);
+      }, 5000); // log every 5 seconds
     }
 
     function stopLog() {
@@ -172,7 +178,7 @@
 
     function downloadCSV() {
       if (!log.length) return alert("No logs to download");
-      const blob = new Blob(["Speed;Lean Angle;Grip\n" + log.join("\n")], { type: "text/csv" });
+      const blob = new Blob(["Time;Speed;Lean Angle;Grip\n" + log.join("\n")], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -195,7 +201,7 @@
     navigator.geolocation.watchPosition(
       (position) => {
         const rawSpeed = (position.coords.speed || 0) * 3.6;
-        speed = lastSpeed * 0.9 + rawSpeed * 0.1; // smoother
+        speed = lastSpeed * 0.5 + rawSpeed * 0.5; // more responsive speed calculation
         lastSpeed = speed;
 
         if (!map) {
@@ -214,15 +220,15 @@
       },
       (err) => console.warn("GPS error:", err),
       {
-        enableHighAccuracy: false,
-        maximumAge: 10000,
+        enableHighAccuracy: true,
+        maximumAge: 1000,
         timeout: 10000,
       }
     );
 
     window.addEventListener("deviceorientation", (e) => {
       const newLean = (e.gamma || 0) - leanOffset;
-      if (Math.abs(newLean - lean) > 1) { // avoid tiny flickers
+      if (Math.abs(newLean - lean) > 1) {
         lean = newLean;
         requestAnimationFrame(updateDisplay);
       }
