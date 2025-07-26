@@ -74,9 +74,32 @@
       width: 100%;
       margin-top: 0.5rem;
     }
-    .lean-indicator {
-      font-size: 2rem;
-      margin-top: 0.2rem;
+    .lean-meter {
+      width: 120px;
+      height: 60px;
+      position: relative;
+    }
+    .arc {
+      width: 100%;
+      height: 100%;
+      border: 10px solid #666;
+      border-bottom: none;
+      border-radius: 120px 120px 0 0;
+      position: relative;
+      box-sizing: border-box;
+    }
+    .needle {
+      width: 8px;
+      height: 60px;
+      background-color: red;
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      margin-left: -4px;
+      transform-origin: bottom center;
+      transform: rotate(0deg);
+      transition: transform 0.2s ease-out;
+      border-radius: 4px;
     }
   </style>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -89,6 +112,7 @@
     <button onclick="stopLog()">Stop Log</button>
     <button onclick="clearLog()">Clear Log</button>
     <button onclick="downloadCSV()">Download CSV</button>
+    <button onclick="toggleWakeLock()">Toggle Wake Lock</button>
   </div>
   <div class="dial-section">
     <div>
@@ -97,7 +121,10 @@
     </div>
     <div>
       <div class="info">Lean: <strong id="leanDisplay">0</strong>°</div>
-      <div class="lean-indicator" id="leanArrow">⬍</div>
+      <div class="lean-meter">
+        <div class="arc"></div>
+        <div class="needle" id="leanNeedle"></div>
+      </div>
       <div class="info">Grip: <strong id="gripDisplay">Good</strong></div>
     </div>
   </div>
@@ -111,7 +138,8 @@
     let logInterval;
     let speed = 0;
     let lean = 0;
-    let speedSmoothing = [];
+    let lastSpeed = 0;
+    let wakeLock = null;
 
     function calibrateLean() {
       window.addEventListener("deviceorientation", function temp(e) {
@@ -153,23 +181,23 @@
     }
 
     function updateDisplay() {
-      const absLean = Math.abs(lean).toFixed(1);
-      const direction = lean > 5 ? "↱" : lean < -5 ? "↲" : "⬍";
-      const grip = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
-
       document.getElementById("speedDisplay").textContent = Math.round(speed);
-      document.getElementById("leanDisplay").textContent = absLean;
-      document.getElementById("gripDisplay").textContent = grip;
+      document.getElementById("leanDisplay").textContent = Math.abs(lean).toFixed(1);
+      document.getElementById("gripDisplay").textContent = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
       document.getElementById("speedBar").style.height = Math.min(speed, 120) + "%";
-      document.getElementById("leanArrow").textContent = direction;
+
+      const needle = document.getElementById("leanNeedle");
+      const maxLean = 90;
+      const clampedLean = Math.max(Math.min(lean, maxLean), -maxLean);
+      const rotation = clampedLean;
+      needle.style.transform = `rotate(${rotation}deg)`;
     }
 
     navigator.geolocation.watchPosition(
       (position) => {
         const rawSpeed = (position.coords.speed || 0) * 3.6;
-        speedSmoothing.push(rawSpeed);
-        if (speedSmoothing.length > 5) speedSmoothing.shift();
-        speed = speedSmoothing.reduce((a, b) => a + b, 0) / speedSmoothing.length;
+        speed = lastSpeed * 0.85 + rawSpeed * 0.15; // smoother
+        lastSpeed = speed;
 
         if (!map) {
           map = L.map('map').setView([position.coords.latitude, position.coords.longitude], 15);
@@ -197,29 +225,28 @@
       updateDisplay();
     });
 
-    // Wake Lock API logic
-    let wakeLock = null;
-
-    async function requestWakeLock() {
-      try {
-        wakeLock = await navigator.wakeLock.request('screen');
-        wakeLock.addEventListener('release', () => {
-          console.log('Wake Lock released');
-        });
-        console.log('Wake Lock active');
-      } catch (err) {
-        console.error(`${err.name}, ${err.message}`);
+    async function toggleWakeLock() {
+      if ('wakeLock' in navigator) {
+        try {
+          if (!wakeLock) {
+            wakeLock = await navigator.wakeLock.request('screen');
+            alert("Wake Lock is ON");
+            wakeLock.addEventListener('release', () => {
+              console.log('Wake Lock was released');
+              wakeLock = null;
+            });
+          } else {
+            await wakeLock.release();
+            wakeLock = null;
+            alert("Wake Lock is OFF");
+          }
+        } catch (err) {
+          console.error(`Wake Lock error: ${err.name}, ${err.message}`);
+        }
+      } else {
+        alert("Wake Lock API not supported on this browser.");
       }
     }
-
-    document.addEventListener("visibilitychange", () => {
-      if (wakeLock !== null && document.visibilityState === "visible") {
-        requestWakeLock();
-      }
-    });
-
-    // Request wake lock on load
-    requestWakeLock();
   </script>
 </body>
 </html>
