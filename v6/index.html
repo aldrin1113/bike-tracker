@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🏍️ Motorcycle Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #0d1117;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0.5rem;
+    }
+    h1 {
+      font-size: 1.5rem;
+      color: #58a6ff;
+      margin: 0.5rem 0;
+    }
+    #map {
+      height: 200px;
+      width: 100%;
+      margin-top: 1rem;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .info {
+      font-size: 1rem;
+      margin: 0.3rem;
+      text-align: center;
+    }
+    .bar {
+      width: 30px;
+      height: 120px;
+      background: #111;
+      border: 2px solid #333;
+      position: relative;
+      margin: 0 auto;
+    }
+    .bar-fill {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      background: linear-gradient(to top, #00ff00, yellow, red);
+      transition: height 0.3s ease-in-out;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      margin: 0.5rem auto;
+    }
+    button {
+      padding: 0.3rem 0.6rem;
+      background-color: #238636;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #2ea043;
+    }
+    .dial-section {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      width: 100%;
+      margin-top: 0.5rem;
+    }
+    .lean-indicator {
+      font-size: 2rem;
+      margin-top: 0.2rem;
+    }
+  </style>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+  <h1>🏍️ Motorcycle Tracker</h1>
+  <div class="controls">
+    <button onclick="calibrateLean()">Calibrate Lean</button>
+    <button onclick="startLog()">Start Log</button>
+    <button onclick="stopLog()">Stop Log</button>
+    <button onclick="clearLog()">Clear Log</button>
+    <button onclick="downloadCSV()">Download CSV</button>
+  </div>
+  <div class="dial-section">
+    <div>
+      <div class="info">Speed: <strong id="speedDisplay">0</strong> km/h</div>
+      <div class="bar"><div class="bar-fill" id="speedBar" style="height: 0%"></div></div>
+    </div>
+    <div>
+      <div class="info">Lean: <strong id="leanDisplay">0</strong>°</div>
+      <div class="lean-indicator" id="leanArrow">⬍</div>
+      <div class="info">Grip: <strong id="gripDisplay">Good</strong></div>
+    </div>
+  </div>
+  <div id="map"></div>
+
+  <script>
+    let leanOffset = 0;
+    let logging = false;
+    let log = [];
+    let map, marker;
+    let logInterval;
+    let speed = 0;
+    let lean = 0;
+    let speedSmoothing = [];
+
+    function calibrateLean() {
+      window.addEventListener("deviceorientation", function temp(e) {
+        leanOffset = e.gamma || 0;
+        alert("Lean calibrated to: " + leanOffset.toFixed(1));
+        window.removeEventListener("deviceorientation", temp);
+      });
+    }
+
+    function startLog() {
+      logging = true;
+      log = [];
+      if (logInterval) clearInterval(logInterval);
+      logInterval = setInterval(() => {
+        if (!logging) return;
+        const direction = lean > 0 ? "Right" : "Left";
+        const grip = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
+        log.push(`${Math.round(speed)};${Math.abs(lean).toFixed(1)}° ${direction};${grip}`);
+      }, 3000);
+    }
+
+    function stopLog() {
+      logging = false;
+      clearInterval(logInterval);
+    }
+
+    function clearLog() {
+      log = [];
+    }
+
+    function downloadCSV() {
+      if (!log.length) return alert("No logs to download");
+      const blob = new Blob(["Speed;Lean Angle;Grip\n" + log.join("\n")], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "tracker_log.csv";
+      a.click();
+    }
+
+    function updateDisplay() {
+      const absLean = Math.abs(lean).toFixed(1);
+      const direction = lean > 5 ? "↱" : lean < -5 ? "↲" : "⬍";
+      const grip = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
+
+      document.getElementById("speedDisplay").textContent = Math.round(speed);
+      document.getElementById("leanDisplay").textContent = absLean;
+      document.getElementById("gripDisplay").textContent = grip;
+      document.getElementById("speedBar").style.height = Math.min(speed, 120) + "%";
+      document.getElementById("leanArrow").textContent = direction;
+    }
+
+    navigator.geolocation.watchPosition(
+      (position) => {
+        const rawSpeed = (position.coords.speed || 0) * 3.6;
+        speedSmoothing.push(rawSpeed);
+        if (speedSmoothing.length > 5) speedSmoothing.shift();
+        speed = speedSmoothing.reduce((a, b) => a + b, 0) / speedSmoothing.length;
+
+        if (!map) {
+          map = L.map('map').setView([position.coords.latitude, position.coords.longitude], 15);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+          }).addTo(map);
+          marker = L.marker([position.coords.latitude, position.coords.longitude]).addTo(map);
+        } else {
+          const latlng = [position.coords.latitude, position.coords.longitude];
+          marker.setLatLng(latlng);
+          map.setView(latlng);
+        }
+        updateDisplay();
+      },
+      (err) => console.warn("GPS error:", err),
+      {
+        enableHighAccuracy: true,
+        maximumAge: 1000,
+        timeout: 5000,
+      }
+    );
+
+    window.addEventListener("deviceorientation", (e) => {
+      lean = (e.gamma || 0) - leanOffset;
+      updateDisplay();
+    });
+
+    // Wake Lock API logic
+    let wakeLock = null;
+
+    async function requestWakeLock() {
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => {
+          console.log('Wake Lock released');
+        });
+        console.log('Wake Lock active');
+      } catch (err) {
+        console.error(`${err.name}, ${err.message}`);
+      }
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (wakeLock !== null && document.visibilityState === "visible") {
+        requestWakeLock();
+      }
+    });
+
+    // Request wake lock on load
+    requestWakeLock();
+  </script>
+</body>
+</html>
