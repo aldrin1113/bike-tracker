@@ -10,7 +10,7 @@
       margin: 0;
       font-family: 'Segoe UI', sans-serif;
       color: white;
-      background-image: url('https://cdn.motor1.com/images/mgl/QOeeb/s1/triumph-street-triple-765-rs.jpg');
+      background-color: black;
       background-size: cover;
       background-position: center;
       background-attachment: fixed;
@@ -24,13 +24,13 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.65); /* Dark transparent overlay */
+      background: rgba(0, 0, 0, 0.65);
       z-index: 0;
     }
 
-    h1, .info, .controls, .dial-section, #map {
+    h1, .info, .controls, .dial-section, #map, #changeBgBtn {
       position: relative;
-      z-index: 1; /* Bring content above dark overlay */
+      z-index: 1;
     }
 
     h1 {
@@ -132,11 +132,24 @@
       border-radius: 8px;
       overflow: hidden;
     }
+
+    #changeBgBtn {
+      position: fixed;
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2;
+    }
+
+    #bgInput {
+      display: none;
+    }
   </style>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
   <h1>🏍️ Motorcycle Tracker</h1>
+
   <div class="controls">
     <button onclick="calibrateLean()">Calibrate Lean</button>
     <button onclick="startLog()">Start Log</button>
@@ -162,6 +175,10 @@
   </div>
 
   <div id="map"></div>
+
+  <!-- Change background image -->
+  <button id="changeBgBtn" onclick="document.getElementById('bgInput').click()">Change Background</button>
+  <input type="file" id="bgInput" accept="image/*" onchange="setBackgroundImage(event)" />
 
   <script>
     let leanOffset = 0;
@@ -274,7 +291,6 @@
             wakeLock = await navigator.wakeLock.request('screen');
             alert("Wake Lock is ON. Lower screen brightness manually for better battery life.");
             wakeLock.addEventListener('release', () => {
-              console.log('Wake Lock was released');
               wakeLock = null;
             });
           } else {
@@ -288,6 +304,17 @@
       } else {
         alert("Wake Lock API not supported on this browser.");
       }
+    }
+
+    function setBackgroundImage(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        document.body.style.backgroundImage = `url(${e.target.result})`;
+      };
+      reader.readAsDataURL(file);
     }
   </script>
 </body>
