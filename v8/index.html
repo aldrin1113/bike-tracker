@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>🏍️ Motorcycle Tracker</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
     body {
       margin: 0;
@@ -88,40 +88,47 @@
     .dial-section {
       display: flex;
       justify-content: space-around;
-      align-items: center;
-      width: 100%;
-      margin-top: 0.5rem;
+      align-items: flex-start;
       flex-wrap: wrap;
+      margin-top: 0.5rem;
+      width: 100%;
+    }
+
+    .lean-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 1rem;
     }
 
     .lean-meter {
-      width: 120px;
-      height: 60px;
+      width: 180px;
+      height: 90px;
       position: relative;
     }
 
     .arc {
       width: 100%;
       height: 100%;
-      border: 10px solid #666;
+      border: 14px solid #666;
       border-bottom: none;
-      border-radius: 120px 120px 0 0;
+      border-radius: 180px 180px 0 0;
       position: relative;
       box-sizing: border-box;
     }
 
     .needle {
-      width: 8px;
-      height: 60px;
+      width: 10px;
+      height: 90px;
       background-color: red;
       position: absolute;
       bottom: 0;
       left: 50%;
-      margin-left: -4px;
+      margin-left: -5px;
       transform-origin: bottom center;
       transform: rotate(0deg);
       transition: transform 0.2s ease-out;
-      border-radius: 4px;
+      border-radius: 5px;
     }
 
     #map {
@@ -164,14 +171,15 @@
       <div class="info">Speed: <strong id="speedDisplay">0</strong> km/h</div>
       <div class="bar"><div class="bar-fill" id="speedBar" style="height: 0%"></div></div>
     </div>
-    <div>
-      <div class="info">Lean: <strong id="leanDisplay">0</strong>°</div>
-      <div class="lean-meter">
-        <div class="arc"></div>
-        <div class="needle" id="leanNeedle"></div>
-      </div>
-      <div class="info">Grip: <strong id="gripDisplay">Good</strong></div>
+  </div>
+
+  <div class="lean-section">
+    <div class="info">Lean: <strong id="leanDisplay">0</strong>°</div>
+    <div class="lean-meter">
+      <div class="arc"></div>
+      <div class="needle" id="leanNeedle"></div>
     </div>
+    <div class="info">Grip: <strong id="gripDisplay">Good</strong></div>
   </div>
 
   <div id="map"></div>
@@ -214,7 +222,7 @@
         const grip = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
         const entry = `${getTimeString()};${Math.round(speed)};${Math.abs(lean).toFixed(1)}° ${direction};${grip}`;
         log.push(entry);
-      }, 5000);
+      }, 3000);
     }
 
     function stopLog() {
@@ -251,9 +259,8 @@
     navigator.geolocation.watchPosition(
       (position) => {
         const rawSpeed = (position.coords.speed || 0) * 3.6;
-        speed = lastSpeed * 0.5 + rawSpeed * 0.5;
+        speed = lastSpeed * 0.7 + rawSpeed * 0.3;
         lastSpeed = speed;
-
         if (!map) {
           map = L.map('map').setView([position.coords.latitude, position.coords.longitude], 14);
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -265,7 +272,6 @@
           marker.setLatLng(latlng);
           map.setView(latlng);
         }
-
         requestAnimationFrame(updateDisplay);
       },
       (err) => console.warn("GPS error:", err),
@@ -309,7 +315,6 @@
     function setBackgroundImage(event) {
       const file = event.target.files[0];
       if (!file) return;
-
       const reader = new FileReader();
       reader.onload = function(e) {
         document.body.style.backgroundImage = `url(${e.target.result})`;
