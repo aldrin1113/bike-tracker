@@ -14,14 +14,23 @@
       background-size: cover;
       background-position: center;
       background-attachment: fixed;
+      position: relative;
     }
 
     body::before {
       content: '';
       position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.7); /* Dark overlay for contrast */
-      z-index: -1;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.65); /* Dark transparent overlay */
+      z-index: 0;
+    }
+
+    h1, .info, .controls, .dial-section, #map {
+      position: relative;
+      z-index: 1; /* Bring content above dark overlay */
     }
 
     h1 {
@@ -116,7 +125,7 @@
     }
 
     #map {
-      display: none; /* Hides the map by default */
+      display: none;
       height: 200px;
       width: 100%;
       margin-top: 1rem;
@@ -188,7 +197,7 @@
         const grip = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
         const entry = `${getTimeString()};${Math.round(speed)};${Math.abs(lean).toFixed(1)}° ${direction};${grip}`;
         log.push(entry);
-      }, 5000); // log every 5 seconds
+      }, 5000);
     }
 
     function stopLog() {
