@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -13,76 +14,91 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-    }.dashboard {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-around;
-  width: 100%;
-}
+    }
 
-.info-box {
-  background: #222;
-  padding: 15px;
-  border-radius: 10px;
-  margin: 10px;
-  flex: 1 1 300px;
-  text-align: center;
-  box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
-}
+    h1 {
+      margin-bottom: 20px;
+    }
 
-.speed-bar {
-  height: 120px;
-  width: 30px;
-  background: #444;
-  border-radius: 5px;
-  margin: 0 auto;
-  position: relative;
-  overflow: hidden;
-}
+    .dashboard {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-around;
+      width: 100%;
+    }
 
-.speed-fill {
-  position: absolute;
-  bottom: 0;
-  width: 100%;
-  background: lime;
-  transition: height 0.2s ease;
-}
+    .info-box {
+      background: #222;
+      padding: 15px;
+      border-radius: 10px;
+      margin: 10px;
+      flex: 1 1 300px;
+      text-align: center;
+      box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+    }
 
-.info {
-  margin: 8px 0;
-}
+    .info {
+      margin: 10px 0;
+    }
 
-.buttons {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-  margin: 10px 0;
-}
+    .speed-bar {
+      height: 120px;
+      width: 30px;
+      background: #444;
+      border-radius: 5px;
+      margin: 0 auto;
+      position: relative;
+      overflow: hidden;
+    }
 
-button {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 8px;
-  background-color: #007bff;
-  color: white;
-  cursor: pointer;
-}
+    .speed-fill {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      background: lime;
+      transition: height 0.2s ease;
+    }
 
-button:hover {
-  background-color: #0056b3;
-}
+    .lean-gauge {
+      width: 160px;
+      height: 80px;
+      margin: 0 auto;
+    }
 
-.lean-gauge {
-  width: 120px;
-  height: 60px;
-  margin: 0 auto;
-}
+    .lean-gauge path {
+      stroke-width: 8;
+    }
 
+    .lean-gauge line {
+      stroke-width: 6;
+      stroke-linecap: round;
+    }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin: 20px 0;
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
   </style>
 </head>
 <body>
   <h1>🏍️ Motorcycle Tracker</h1>
+
   <div class="dashboard">
     <div class="info-box">
       <div class="info">Speed</div>
@@ -90,30 +106,35 @@ button:hover {
         <div id="speedBar" class="speed-fill"></div>
       </div>
       <div class="info"><strong id="speedDisplay">0</strong> km/h</div>
-    </div><div class="info-box">
-  <div class="info">Lean Angle</div>
-  <svg class="lean-gauge" viewBox="0 0 100 50">
-    <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#888" stroke-width="6"/>
-    <line id="leanNeedle" x1="50" y1="50" x2="50" y2="10" stroke="red" stroke-width="4" stroke-linecap="round"/>
-  </svg>
-  <div class="info">Lean: <strong id="leanDisplay">0</strong>°</div>
-  <div class="info">Grip: <strong id="gripDisplay">Good</strong></div>
-</div>
+    </div>
 
-  </div>  <div class="buttons">
+    <div class="info-box">
+      <div class="info">Lean Angle</div>
+      <svg class="lean-gauge" viewBox="0 0 100 50">
+        <path d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke="#888" />
+        <line id="leanNeedle" x1="50" y1="50" x2="50" y2="10" stroke="red" />
+      </svg>
+      <div class="info">Lean: <strong id="leanDisplay">0</strong>°</div>
+      <div class="info">Grip: <strong id="gripDisplay">Good</strong></div>
+    </div>
+  </div>
+
+  <div class="buttons">
     <button onclick="calibrateLean()">Calibrate</button>
     <button onclick="startLog()">Start Log</button>
     <button onclick="stopLog()">Stop Log</button>
     <button onclick="clearLog()">Clear Log</button>
     <button onclick="downloadLog()">Download Log</button>
-  </div>  <script>
+  </div>
+
+  <script>
     let lean = 0;
     let speed = 0;
     let smoothedSpeed = 0;
     let logData = [];
     let isLogging = false;
     let logInterval;
-    const smoothingFactor = 0.1;
+    const smoothingFactor = 0.05; // lower sensitivity
 
     function calibrateLean() {
       window.calibration = lean;
@@ -149,7 +170,7 @@ button:hover {
       const maxAngle = 60;
       const clamped = Math.max(-maxAngle, Math.min(maxAngle, angle));
       const radians = (clamped / maxAngle) * (Math.PI / 2);
-      const length = 40;
+      const length = 35;
       const x2 = 50 + length * Math.sin(radians);
       const y2 = 50 - length * Math.cos(radians);
       document.getElementById("leanNeedle").setAttribute("x2", x2);
@@ -159,7 +180,8 @@ button:hover {
     function updateDisplay() {
       document.getElementById("speedDisplay").textContent = Math.round(smoothedSpeed);
       document.getElementById("leanDisplay").textContent = Math.abs(lean).toFixed(1);
-      document.getElementById("gripDisplay").textContent = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
+      document.getElementById("gripDisplay").textContent =
+        Math.abs(lean) > 50 ? "Low" : smoothedSpeed > 70 ? "Medium" : "Good";
       document.getElementById("speedBar").style.height = Math.min(smoothedSpeed, 120) + "%";
       updateLeanNeedle(lean);
     }
@@ -179,5 +201,6 @@ button:hover {
         updateDisplay();
       });
     }
-  </script></body>
+  </script>
+</body>
 </html>
