@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🏍️ Motorcycle Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #0d1117;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0.5rem;
+    }
+    h1 {
+      font-size: 1.5rem;
+      color: #58a6ff;
+      margin: 0.5rem 0;
+    }
+    #map {
+      height: 200px;
+      width: 100%;
+      margin-top: 1rem;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .info {
+      font-size: 1rem;
+      margin: 0.3rem;
+      text-align: center;
+    }
+    .bar {
+      width: 30px;
+      height: 120px;
+      background: #111;
+      border: 2px solid #333;
+      position: relative;
+      margin: 0 auto;
+    }
+    .bar-fill {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      background: linear-gradient(to top, #00ff00, yellow, red);
+      transition: height 0.3s ease-in-out;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      margin: 0.5rem auto;
+    }
+    button {
+      padding: 0.3rem 0.6rem;
+      background-color: #238636;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #2ea043;
+    }
+    .dial-section {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      width: 100%;
+      margin-top: 0.5rem;
+    }
+    .lean-meter {
+      width: 120px;
+      height: 60px;
+      position: relative;
+    }
+    .arc {
+      width: 100%;
+      height: 100%;
+      border: 10px solid #666;
+      border-bottom: none;
+      border-radius: 120px 120px 0 0;
+      position: relative;
+      box-sizing: border-box;
+    }
+    .needle {
+      width: 8px;
+      height: 60px;
+      background-color: red;
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      margin-left: -4px;
+      transform-origin: bottom center;
+      transform: rotate(0deg);
+      transition: transform 0.2s ease-out;
+      border-radius: 4px;
+    }
+  </style>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+  <h1>🏍️ Motorcycle Tracker</h1>
+  <div class="controls">
+    <button onclick="calibrateLean()">Calibrate Lean</button>
+    <button onclick="startLog()">Start Log</button>
+    <button onclick="stopLog()">Stop Log</button>
+    <button onclick="clearLog()">Clear Log</button>
+    <button onclick="downloadCSV()">Download CSV</button>
+    <button onclick="toggleWakeLock()">Toggle Wake Lock</button>
+  </div>
+  <div class="dial-section">
+    <div>
+      <div class="info">Speed: <strong id="speedDisplay">0</strong> km/h</div>
+      <div class="bar"><div class="bar-fill" id="speedBar" style="height: 0%"></div></div>
+    </div>
+    <div>
+      <div class="info">Lean: <strong id="leanDisplay">0</strong>°</div>
+      <div class="lean-meter">
+        <div class="arc"></div>
+        <div class="needle" id="leanNeedle"></div>
+      </div>
+      <div class="info">Grip: <strong id="gripDisplay">Good</strong></div>
+    </div>
+  </div>
+  <div id="map"></div>
+
+  <script>
+    let leanOffset = 0;
+    let logging = false;
+    let log = [];
+    let map, marker;
+    let logInterval;
+    let speed = 0;
+    let lean = 0;
+    let lastSpeed = 0;
+    let wakeLock = null;
+
+    function calibrateLean() {
+      window.addEventListener("deviceorientation", function temp(e) {
+        leanOffset = e.gamma || 0;
+        alert("Lean calibrated to: " + leanOffset.toFixed(1));
+        window.removeEventListener("deviceorientation", temp);
+      });
+    }
+
+    function startLog() {
+      logging = true;
+      log = [];
+      if (logInterval) clearInterval(logInterval);
+      logInterval = setInterval(() => {
+        if (!logging) return;
+        const direction = lean > 0 ? "Right" : "Left";
+        const grip = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
+        log.push(`${Math.round(speed)};${Math.abs(lean).toFixed(1)}° ${direction};${grip}`);
+      }, 5000); // less frequent to save battery
+    }
+
+    function stopLog() {
+      logging = false;
+      clearInterval(logInterval);
+    }
+
+    function clearLog() {
+      log = [];
+    }
+
+    function downloadCSV() {
+      if (!log.length) return alert("No logs to download");
+      const blob = new Blob(["Speed;Lean Angle;Grip\n" + log.join("\n")], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "tracker_log.csv";
+      a.click();
+    }
+
+    function updateDisplay() {
+      document.getElementById("speedDisplay").textContent = Math.round(speed);
+      document.getElementById("leanDisplay").textContent = Math.abs(lean).toFixed(1);
+      document.getElementById("gripDisplay").textContent = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
+      document.getElementById("speedBar").style.height = Math.min(speed, 120) + "%";
+
+      const needle = document.getElementById("leanNeedle");
+      const maxLean = 90;
+      const clampedLean = Math.max(Math.min(lean, maxLean), -maxLean);
+      needle.style.transform = `rotate(${clampedLean}deg)`;
+    }
+
+    navigator.geolocation.watchPosition(
+      (position) => {
+        const rawSpeed = (position.coords.speed || 0) * 3.6;
+        speed = lastSpeed * 0.9 + rawSpeed * 0.1; // smoother
+        lastSpeed = speed;
+
+        if (!map) {
+          map = L.map('map').setView([position.coords.latitude, position.coords.longitude], 14);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+          }).addTo(map);
+          marker = L.marker([position.coords.latitude, position.coords.longitude]).addTo(map);
+        } else {
+          const latlng = [position.coords.latitude, position.coords.longitude];
+          marker.setLatLng(latlng);
+          map.setView(latlng);
+        }
+
+        requestAnimationFrame(updateDisplay);
+      },
+      (err) => console.warn("GPS error:", err),
+      {
+        enableHighAccuracy: false,
+        maximumAge: 10000,
+        timeout: 10000,
+      }
+    );
+
+    window.addEventListener("deviceorientation", (e) => {
+      const newLean = (e.gamma || 0) - leanOffset;
+      if (Math.abs(newLean - lean) > 1) { // avoid tiny flickers
+        lean = newLean;
+        requestAnimationFrame(updateDisplay);
+      }
+    });
+
+    async function toggleWakeLock() {
+      if ('wakeLock' in navigator) {
+        try {
+          if (!wakeLock) {
+            wakeLock = await navigator.wakeLock.request('screen');
+            alert("Wake Lock is ON. Lower screen brightness manually for better battery life.");
+            wakeLock.addEventListener('release', () => {
+              console.log('Wake Lock was released');
+              wakeLock = null;
+            });
+          } else {
+            await wakeLock.release();
+            wakeLock = null;
+            alert("Wake Lock is OFF");
+          }
+        } catch (err) {
+          console.error(`Wake Lock error: ${err.name}, ${err.message}`);
+        }
+      } else {
+        alert("Wake Lock API not supported on this browser.");
+      }
+    }
+  </script>
+</body>
+</html>
