@@ -1,213 +1,183 @@
-<!DOCTYPE html><html lang="en"><head>
+<!DOCTYPE html><html lang="en">
+<head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>🏍️ Motorcycle Tracker</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <title>Motorcycle Tracker</title>
   <style>
     body {
+      font-family: Arial, sans-serif;
+      background-color: #111;
+      color: #eee;
       margin: 0;
-      font-family: 'Segoe UI', sans-serif;
-      background-color: #0d1117;
-      color: white;
+      padding: 10px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 0.5rem;
-    }
-    h1 {
-      font-size: 1.5rem;
-      color: #58a6ff;
-      margin: 0.5rem 0;
-    }
-    #map {
-      height: 200px;
-      width: 100%;
-      margin-top: 1rem;
-      border-radius: 8px;
-      overflow: hidden;
-    }
-    .info {
-      font-size: 1rem;
-      margin: 0.3rem;
-      text-align: center;
-    }
-    .bar {
-      width: 30px;
-      height: 120px;
-      background: #111;
-      border: 2px solid #333;
-      position: relative;
-      margin: 0 auto;
-    }
-    .bar-fill {
-      position: absolute;
-      bottom: 0;
-      width: 100%;
-      background: linear-gradient(to top, #00ff00, yellow, red);
-      transition: height 0.3s ease-in-out;
-    }
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 0.5rem;
-      margin: 0.5rem auto;
-    }
-    button {
-      padding: 0.3rem 0.6rem;
-      background-color: #238636;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      font-size: 0.9rem;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #2ea043;
-    }
-    .dial-section {
-      display: flex;
-      justify-content: space-around;
-      align-items: center;
-      width: 100%;
-      margin-top: 0.5rem;
-    }
-    .lean-gauge {
-      position: relative;
-      width: 160px;
-      height: 80px;
-      margin: 0 auto;
-      overflow: hidden;
-    }
-    .lean-arc {
-      width: 100%;
-      height: 100%;
-      border-top: 4px solid #58a6ff;
-      border-radius: 160px 160px 0 0;
-      position: absolute;
-      bottom: 0;
-    }
-    .needle {
-      width: 2px;
-      height: 80px;
-      background: red;
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      transform-origin: bottom center;
-      transition: transform 0.2s ease-in-out;
-    }
+    }.dashboard {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-around;
+  width: 100%;
+}
+
+.info-box {
+  background: #222;
+  padding: 15px;
+  border-radius: 10px;
+  margin: 10px;
+  flex: 1 1 300px;
+  text-align: center;
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+}
+
+.speed-bar {
+  height: 120px;
+  width: 30px;
+  background: #444;
+  border-radius: 5px;
+  margin: 0 auto;
+  position: relative;
+  overflow: hidden;
+}
+
+.speed-fill {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  background: lime;
+  transition: height 0.2s ease;
+}
+
+.info {
+  margin: 8px 0;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  background-color: #007bff;
+  color: white;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+.lean-gauge {
+  width: 120px;
+  height: 60px;
+  margin: 0 auto;
+}
+
   </style>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
   <h1>🏍️ Motorcycle Tracker</h1>
-  <div class="controls">
-    <button onclick="calibrateLean()">Calibrate Lean</button>
+  <div class="dashboard">
+    <div class="info-box">
+      <div class="info">Speed</div>
+      <div class="speed-bar">
+        <div id="speedBar" class="speed-fill"></div>
+      </div>
+      <div class="info"><strong id="speedDisplay">0</strong> km/h</div>
+    </div><div class="info-box">
+  <div class="info">Lean Angle</div>
+  <svg class="lean-gauge" viewBox="0 0 100 50">
+    <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#888" stroke-width="6"/>
+    <line id="leanNeedle" x1="50" y1="50" x2="50" y2="10" stroke="red" stroke-width="4" stroke-linecap="round"/>
+  </svg>
+  <div class="info">Lean: <strong id="leanDisplay">0</strong>°</div>
+  <div class="info">Grip: <strong id="gripDisplay">Good</strong></div>
+</div>
+
+  </div>  <div class="buttons">
+    <button onclick="calibrateLean()">Calibrate</button>
     <button onclick="startLog()">Start Log</button>
     <button onclick="stopLog()">Stop Log</button>
     <button onclick="clearLog()">Clear Log</button>
-    <button onclick="downloadCSV()">Download CSV</button>
-  </div>  
-  <div class="dial-section">
-    <div>
-      <div class="info">Speed: <strong id="speedDisplay">0</strong> km/h</div>
-      <div class="bar"><div class="bar-fill" id="speedBar" style="height: 0%"></div></div>
-    </div>
-    <div>
-      <div class="info">Lean: <strong id="leanDisplay">0</strong>°</div>
-      <div class="lean-gauge">
-        <div class="lean-arc"></div>
-        <div class="needle" id="leanNeedle"></div>
-      </div>
-      <div class="info">Grip: <strong id="gripDisplay">Good</strong></div>
-    </div>
-  </div>  
-  <div id="map"></div>  
-  <script>
-    let leanOffset = 0;
-    let logging = false;
-    let log = [];
-    let map, marker;
-    let logInterval;
+    <button onclick="downloadLog()">Download Log</button>
+  </div>  <script>
+    let lean = 0;
     let speed = 0;
-    let lean = 0;function calibrateLean() {
-  window.addEventListener("deviceorientation", function temp(e) {
-    leanOffset = e.gamma || 0;
-    alert("Lean calibrated to: " + leanOffset.toFixed(1));
-    window.removeEventListener("deviceorientation", temp);
-  });
-}
+    let smoothedSpeed = 0;
+    let logData = [];
+    let isLogging = false;
+    let logInterval;
+    const smoothingFactor = 0.1;
 
-function startLog() {
-  logging = true;
-  log = [];
-  if (logInterval) clearInterval(logInterval);
-  logInterval = setInterval(() => {
-    if (!logging) return;
-    const direction = lean > 0 ? "Right" : "Left";
-    const grip = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
-    log.push(`${Math.round(speed)};${Math.abs(lean).toFixed(1)}° ${direction};${grip}`);
-  }, 3000);
-}
-
-function stopLog() {
-  logging = false;
-  clearInterval(logInterval);
-}
-
-function clearLog() {
-  log = [];
-}
-
-function downloadCSV() {
-  if (!log.length) return alert("No logs to download");
-  const blob = new Blob(["Speed;Lean Angle;Grip\n" + log.join("\n")], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "tracker_log.csv";
-  a.click();
-}
-
-function updateDisplay() {
-  document.getElementById("speedDisplay").textContent = Math.round(speed);
-  document.getElementById("leanDisplay").textContent = Math.abs(lean).toFixed(1);
-  document.getElementById("gripDisplay").textContent = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
-  document.getElementById("speedBar").style.height = Math.min(speed, 120) + "%";
-  document.getElementById("leanNeedle").style.transform = `rotate(${lean}deg)`;
-}
-
-navigator.geolocation.watchPosition(
-  (position) => {
-    speed = (position.coords.speed || 0) * 3.6;
-    if (!map) {
-      map = L.map('map').setView([position.coords.latitude, position.coords.longitude], 15);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-      }).addTo(map);
-      marker = L.marker([position.coords.latitude, position.coords.longitude]).addTo(map);
-    } else {
-      const latlng = [position.coords.latitude, position.coords.longitude];
-      marker.setLatLng(latlng);
-      map.setView(latlng);
+    function calibrateLean() {
+      window.calibration = lean;
     }
-    updateDisplay();
-  },
-  (err) => console.warn("GPS error:", err),
-  {
-    enableHighAccuracy: true,
-    maximumAge: 1000,
-    timeout: 5000,
-  }
-);
 
-window.addEventListener("deviceorientation", (e) => {
-  lean = (e.gamma || 0) - leanOffset;
-  lean = Math.max(-90, Math.min(90, lean));
-  updateDisplay();
-});
+    function startLog() {
+      isLogging = true;
+      logInterval = setInterval(() => {
+        if (isLogging) {
+          logData.push(`${Date.now()},${Math.round(smoothedSpeed)} km/h,${lean >= 0 ? 'Right' : 'Left'} ${Math.abs(lean).toFixed(1)}°,${document.getElementById("gripDisplay").textContent}`);
+        }
+      }, 3000);
+    }
 
-  </script>
-</body>
+    function stopLog() {
+      isLogging = false;
+      clearInterval(logInterval);
+    }
+
+    function clearLog() {
+      logData = [];
+    }
+
+    function downloadLog() {
+      const blob = new Blob([logData.join("\n")], { type: "text/csv" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "ride_log.csv";
+      a.click();
+    }
+
+    function updateLeanNeedle(angle) {
+      const maxAngle = 60;
+      const clamped = Math.max(-maxAngle, Math.min(maxAngle, angle));
+      const radians = (clamped / maxAngle) * (Math.PI / 2);
+      const length = 40;
+      const x2 = 50 + length * Math.sin(radians);
+      const y2 = 50 - length * Math.cos(radians);
+      document.getElementById("leanNeedle").setAttribute("x2", x2);
+      document.getElementById("leanNeedle").setAttribute("y2", y2);
+    }
+
+    function updateDisplay() {
+      document.getElementById("speedDisplay").textContent = Math.round(smoothedSpeed);
+      document.getElementById("leanDisplay").textContent = Math.abs(lean).toFixed(1);
+      document.getElementById("gripDisplay").textContent = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
+      document.getElementById("speedBar").style.height = Math.min(smoothedSpeed, 120) + "%";
+      updateLeanNeedle(lean);
+    }
+
+    if (window.DeviceMotionEvent) {
+      window.addEventListener("devicemotion", (event) => {
+        const x = event.accelerationIncludingGravity.x;
+        const y = event.accelerationIncludingGravity.y;
+        lean = Math.atan2(x, y) * (180 / Math.PI);
+      });
+    }
+
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition((position) => {
+        speed = (position.coords.speed || 0) * 3.6;
+        smoothedSpeed = smoothedSpeed * (1 - smoothingFactor) + speed * smoothingFactor;
+        updateDisplay();
+      });
+    }
+  </script></body>
 </html>
