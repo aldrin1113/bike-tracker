@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Ride Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      background: #000;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    #overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-size: cover;
+      background-position: center;
+      z-index: -1;
+      filter: brightness(0.4);
+    }
+
+    .hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      padding: 10px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .stat {
+      flex: 1 1 40%;
+      background: rgba(0,0,0,0.5);
+      padding: 10px;
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    .bottom-bar {
+      position: fixed;
+      bottom: 10px;
+      left: 0;
+      width: 100%;
+      display: flex;
+      justify-content: space-around;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      background: #222;
+      color: #fff;
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 60px;
+      height: 34px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0;
+      right: 0; bottom: 0;
+      background-color: #ccc;
+      transition: 0.4s;
+      border-radius: 34px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 26px; width: 26px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: 0.4s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: #2196F3;
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(26px);
+    }
+
+    .lean-display {
+      position: absolute;
+      bottom: 120px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    canvas {
+      width: 250px;
+      height: 125px;
+    }
+
+  </style>
+</head>
+<body>
+  <div id="overlay"></div>
+
+  <div class="hud">
+    <div class="stats">
+      <div class="stat">Speed: <span id="speed">0</span> km/h</div>
+      <div class="stat">Altitude: <span id="altitude">--</span> m</div>
+      <div class="stat">Distance: <span id="distance">0.00</span> km</div>
+      <div class="stat">Avg Speed: <span id="avgSpeed">0.00</span> km/h</div>
+      <div class="stat">Lean Angle: <span id="lean">0</span>°</div>
+      <div class="stat">Tyre Grip: <span id="grip">--</span></div>
+    </div>
+  </div>
+
+  <div class="lean-display">
+    <canvas id="leanCanvas" width="250" height="125"></canvas>
+  </div>
+
+  <div class="bottom-bar">
+    <label class="switch">
+      <input type="checkbox" id="logToggle">
+      <span class="slider"></span>
+    </label>
+    <button onclick="downloadCSV()">Download CSV</button>
+    <button onclick="toggleWakeLock()">Toggle Screen Lock</button>
+  </div>
+
+  <script>
+    // Core variables
+    let watchId = null;
+    let logging = false;
+    let logData = [];
+    let totalDistance = 0;
+    let lastLat = null;
+    let lastLon = null;
+    let startTime = null;
+    let wakeLock = null;
+
+    const speedEl = document.getElementById("speed");
+    const altitudeEl = document.getElementById("altitude");
+    const distanceEl = document.getElementById("distance");
+    const avgSpeedEl = document.getElementById("avgSpeed");
+    const leanEl = document.getElementById("lean");
+    const gripEl = document.getElementById("grip");
+    const logToggle = document.getElementById("logToggle");
+
+    logToggle.addEventListener('change', function () {
+      if (this.checked) {
+        startLogging();
+      } else {
+        stopLogging();
+      }
+    });
+
+    function startLogging() {
+      if (watchId) return;
+      startTime = new Date();
+      logData = [["Time", "Latitude", "Longitude", "Speed(km/h)", "Altitude(m)", "Lean(°)", "Distance(km)", "Grip"]];
+      watchId = navigator.geolocation.watchPosition(handlePosition, console.error, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+    }
+
+    function stopLogging() {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        totalDistance = 0;
+        lastLat = null;
+        lastLon = null;
+      }
+    }
+
+    function handlePosition(pos) {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      const alt = pos.coords.altitude || 0;
+      const speed = (pos.coords.speed || 0) * 3.6;
+      const time = new Date().toLocaleTimeString();
+
+      const lean = Math.floor(Math.random() * 60 - 30);  // Simulated lean
+      const grip = Math.random() > 0.5 ? "Good" : "Low";
+
+      speedEl.textContent = speed.toFixed(1);
+      altitudeEl.textContent = alt.toFixed(1);
+      leanEl.textContent = lean;
+      gripEl.textContent = grip;
+
+      if (lastLat !== null && lastLon !== null) {
+        const dist = getDistanceFromLatLonInKm(lat, lon, lastLat, lastLon);
+        totalDistance += dist;
+      }
+
+      distanceEl.textContent = totalDistance.toFixed(2);
+
+      const elapsed = (new Date() - startTime) / 3600000;
+      const avgSpeed = totalDistance / (elapsed || 1);
+      avgSpeedEl.textContent = avgSpeed.toFixed(2);
+
+      if (logging || logToggle.checked) {
+        logData.push([time, lat, lon, speed.toFixed(1), alt.toFixed(1), lean, totalDistance.toFixed(2), grip]);
+      }
+
+      lastLat = lat;
+      lastLon = lon;
+
+      drawLean(lean);
+    }
+
+    function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = deg2rad(lat2 - lat1);
+      const dLon = deg2rad(lon2 - lon1);
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
+    function deg2rad(deg) {
+      return deg * (Math.PI / 180);
+    }
+
+    function downloadCSV() {
+      let csvContent = "data:text/csv;charset=utf-8," + logData.map(e => e.join(",")).join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "ride_log.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    async function toggleWakeLock() {
+      try {
+        if (!wakeLock) {
+          wakeLock = await navigator.wakeLock.request("screen");
+          alert("Screen lock enabled");
+        } else {
+          wakeLock.release();
+          wakeLock = null;
+          alert("Screen lock disabled");
+        }
+      } catch (err) {
+        console.error("Wake Lock error:", err);
+      }
+    }
+
+    function drawLean(angle) {
+      const canvas = document.getElementById("leanCanvas");
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Arc
+      ctx.beginPath();
+      ctx.arc(canvas.width / 2, canvas.height, canvas.width / 2 - 10, Math.PI, 0);
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 5;
+      ctx.stroke();
+
+      // Needle
+      const rad = (angle + 90) * (Math.PI / 180);
+      const len = canvas.height - 20;
+      const x = canvas.width / 2 + len * Math.cos(rad);
+      const y = canvas.height - len * Math.sin(rad);
+
+      ctx.beginPath();
+      ctx.moveTo(canvas.width / 2, canvas.height);
+      ctx.lineTo(x, y);
+      ctx.strokeStyle = "red";
+      ctx.lineWidth = 5;
+      ctx.stroke();
+    }
+  </script>
+</body>
+</html>
