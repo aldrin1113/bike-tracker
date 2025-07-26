@@ -1,302 +1,367 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Ride Tracker</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🏍️ Motorcycle Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
-    body, html {
+    body {
       margin: 0;
-      padding: 0;
-      font-family: sans-serif;
-      background: #000;
-      color: #fff;
-      overflow: hidden;
+      font-family: 'Segoe UI', sans-serif;
+      color: white;
+      background-color: black;
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
     }
-
-    #overlay {
+    body::before {
+      content: '';
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background-size: cover;
-      background-position: center;
-      z-index: -1;
-      filter: brightness(0.4);
+      background: rgba(0, 0, 0, 0.65);
+      z-index: 0;
     }
-
-    .hud {
-      position: absolute;
-      top: 0;
-      left: 0;
-      padding: 10px;
-      width: 100%;
-      box-sizing: border-box;
+    h1, .info, .controls, #map {
+      position: relative;
+      z-index: 1;
     }
-
-    .stats {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-bottom: 10px;
-    }
-
-    .stat {
-      flex: 1 1 40%;
-      background: rgba(0,0,0,0.5);
-      padding: 10px;
-      border-radius: 10px;
+    h1 {
+      font-size: 1.5rem;
+      color: #58a6ff;
+      margin: 0.5rem 0;
       text-align: center;
     }
-
-    .bottom-bar {
-      position: fixed;
-      bottom: 10px;
-      left: 0;
-      width: 100%;
+    .controls {
       display: flex;
-      justify-content: space-around;
-      padding: 10px;
-      box-sizing: border-box;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      margin: 0.5rem auto;
+      align-items: center;
     }
-
     button {
-      padding: 10px 20px;
-      font-size: 16px;
+      padding: 1rem 1.5rem;
+      background-color: #238636;
+      color: white;
       border: none;
       border-radius: 8px;
-      background: #222;
-      color: #fff;
+      font-size: 1.2rem;
+      cursor: pointer;
+      min-width: 140px;
     }
-
     .switch {
       position: relative;
       display: inline-block;
-      width: 60px;
-      height: 34px;
+      width: 80px;
+      height: 44px;
     }
-
     .switch input {
       opacity: 0;
       width: 0;
       height: 0;
     }
-
     .slider {
       position: absolute;
       cursor: pointer;
       top: 0; left: 0;
       right: 0; bottom: 0;
       background-color: #ccc;
-      transition: 0.4s;
+      transition: .4s;
       border-radius: 34px;
     }
-
     .slider:before {
       position: absolute;
       content: "";
-      height: 26px; width: 26px;
-      left: 4px;
-      bottom: 4px;
+      height: 32px;
+      width: 32px;
+      left: 6px;
+      bottom: 6px;
       background-color: white;
-      transition: 0.4s;
+      transition: .4s;
       border-radius: 50%;
     }
-
     input:checked + .slider {
-      background-color: #2196F3;
+      background-color: #28a745;
     }
-
     input:checked + .slider:before {
-      transform: translateX(26px);
+      transform: translateX(36px);
+    }
+    .log-label {
+      color: white;
+      margin-left: 0.5rem;
+      font-size: 1rem;
     }
 
-    .lean-display {
+    .metrics {
+      text-align: center;
+      margin-top: 1rem;
+    }
+    .metrics div {
+      font-size: 1.3rem;
+      margin: 0.3rem 0;
+    }
+    .lean-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 1.5rem;
+    }
+    .lean-meter {
+      width: 320px;
+      height: 160px;
+      position: relative;
+    }
+    .arc {
+      width: 100%;
+      height: 100%;
+      border: 24px solid #666;
+      border-bottom: none;
+      border-radius: 300px 300px 0 0;
+      position: relative;
+      box-sizing: border-box;
+    }
+    .needle {
+      width: 16px;
+      height: 140px;
+      background-color: red;
       position: absolute;
-      bottom: 120px;
+      bottom: 0;
+      left: 50%;
+      margin-left: -8px;
+      transform-origin: bottom center;
+      transform: rotate(0deg);
+      transition: transform 0.2s ease-out;
+      border-radius: 8px;
+    }
+    #map {
+      display: none;
+      height: 200px;
+      width: 100%;
+      margin-top: 1rem;
+      border-radius: 8px;
+    }
+    #changeBgBtn {
+      position: fixed;
+      bottom: 1rem;
       left: 50%;
       transform: translateX(-50%);
+      z-index: 2;
     }
-
-    canvas {
-      width: 250px;
-      height: 125px;
+    #bgInput {
+      display: none;
     }
-
+    .speed-large {
+      font-size: 4rem;
+      font-weight: bold;
+      text-align: center;
+      margin-top: 0.8rem;
+    }
   </style>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
-  <div id="overlay"></div>
-
-  <div class="hud">
-    <div class="stats">
-      <div class="stat">Speed: <span id="speed">0</span> km/h</div>
-      <div class="stat">Altitude: <span id="altitude">--</span> m</div>
-      <div class="stat">Distance: <span id="distance">0.00</span> km</div>
-      <div class="stat">Avg Speed: <span id="avgSpeed">0.00</span> km/h</div>
-      <div class="stat">Lean Angle: <span id="lean">0</span>°</div>
-      <div class="stat">Tyre Grip: <span id="grip">--</span></div>
-    </div>
-  </div>
-
-  <div class="lean-display">
-    <canvas id="leanCanvas" width="250" height="125"></canvas>
-  </div>
-
-  <div class="bottom-bar">
+  <h1>🏍️ Motorcycle Tracker</h1>
+  <div class="controls">
+    <button onclick="calibrateLean()">Calibrate Lean</button>
+    
     <label class="switch">
-      <input type="checkbox" id="logToggle">
+      <input type="checkbox" onchange="toggleLog(this)">
       <span class="slider"></span>
     </label>
+    <span class="log-label">Log</span>
+
+    <button onclick="clearLog()">Clear Log</button>
     <button onclick="downloadCSV()">Download CSV</button>
-    <button onclick="toggleWakeLock()">Toggle Screen Lock</button>
+    <button onclick="toggleWakeLock()">Toggle Wake Lock</button>
   </div>
 
+  <div class="speed-large" id="speedDisplay">0 km/h</div>
+
+  <div class="metrics">
+    <div>Total Distance: <span id="totalDistance">0.00</span> km</div>
+    <div>Average Speed: <span id="avgSpeed">0</span> km/h</div>
+    <div>Altitude: <span id="altitudeDisplay">--</span> m</div>
+  </div>
+
+  <div class="lean-section">
+    <div class="info">Lean: <strong id="leanDisplay">0</strong>°</div>
+    <div class="lean-meter">
+      <div class="arc"></div>
+      <div class="needle" id="leanNeedle"></div>
+    </div>
+    <div class="info">Grip: <strong id="gripDisplay">Good</strong></div>
+  </div>
+
+  <div id="map"></div>
+  <button id="changeBgBtn" onclick="document.getElementById('bgInput').click()">Change Background</button>
+  <input type="file" id="bgInput" accept="image/*" onchange="setBackgroundImage(event)" />
+
   <script>
-    // Core variables
-    let watchId = null;
-    let logging = false;
-    let logData = [];
-    let totalDistance = 0;
-    let lastLat = null;
-    let lastLon = null;
-    let startTime = null;
+    let leanOffset = 0, logging = false, log = [], map, marker, logInterval;
+    let lean = 0, speed = 0, speedBuffer = [], totalDistance = 0, speedSum = 0, speedCount = 0;
+    let currentAltitude = null;
+    const speedBufferSize = 5;
+    let lastLatLng = null;
     let wakeLock = null;
 
-    const speedEl = document.getElementById("speed");
-    const altitudeEl = document.getElementById("altitude");
-    const distanceEl = document.getElementById("distance");
-    const avgSpeedEl = document.getElementById("avgSpeed");
-    const leanEl = document.getElementById("lean");
-    const gripEl = document.getElementById("grip");
-    const logToggle = document.getElementById("logToggle");
+    function calibrateLean() {
+      window.addEventListener("deviceorientation", function temp(e) {
+        leanOffset = e.gamma || 0;
+        alert("Lean calibrated to: " + leanOffset.toFixed(1));
+        window.removeEventListener("deviceorientation", temp);
+      });
+    }
 
-    logToggle.addEventListener('change', function () {
-      if (this.checked) {
-        startLogging();
-      } else {
-        stopLogging();
+    function getTimeString() {
+      const now = new Date();
+      return now.toLocaleTimeString();
+    }
+
+    function toggleLog(elem) {
+      if (elem.checked) startLog();
+      else stopLog();
+    }
+
+    function startLog() {
+      logging = true;
+      log = [];
+      if (logInterval) clearInterval(logInterval);
+      logInterval = setInterval(() => {
+        if (!logging) return;
+        const direction = lean > 0 ? "Right" : "Left";
+        const grip = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
+        const entry = `${getTimeString()},${Math.round(speed)},${Math.abs(lean).toFixed(1)}° ${direction},${grip},${totalDistance.toFixed(2)},${Math.round(speedSum / speedCount)},${currentAltitude !== null ? currentAltitude.toFixed(1) : "N/A"}`;
+        log.push(entry);
+      }, 3000);
+    }
+
+    function stopLog() {
+      logging = false;
+      clearInterval(logInterval);
+      totalDistance = 0;
+      speedSum = 0;
+      speedCount = 0;
+      lastLatLng = null;
+    }
+
+    function clearLog() {
+      log = [];
+    }
+
+    function downloadCSV() {
+      if (!log.length) return alert("No logs to download");
+      const headers = "Time,Speed,Lean Angle,Grip,Distance,Average Speed,Altitude (m)\n";
+      const blob = new Blob([headers + log.join("\n")], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "tracker_log.csv";
+      a.click();
+    }
+
+    function updateDisplay() {
+      document.getElementById("speedDisplay").textContent = Math.round(speed) + " km/h";
+      document.getElementById("leanDisplay").textContent = Math.abs(lean).toFixed(1);
+      document.getElementById("gripDisplay").textContent = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
+      document.getElementById("avgSpeed").textContent = speedCount > 0 ? Math.round(speedSum / speedCount) : 0;
+      document.getElementById("totalDistance").textContent = totalDistance.toFixed(2);
+      document.getElementById("altitudeDisplay").textContent = currentAltitude !== null ? Math.round(currentAltitude) : '--';
+
+      const needle = document.getElementById("leanNeedle");
+      const clampedLean = Math.max(Math.min(lean, 90), -90);
+      needle.style.transform = `rotate(${clampedLean}deg)`;
+    }
+
+    navigator.geolocation.watchPosition(
+      (position) => {
+        const rawSpeed = (position.coords.speed || 0) * 3.6;
+        if (rawSpeed >= 0 && rawSpeed < 300) {
+          speedBuffer.push(rawSpeed);
+          if (speedBuffer.length > speedBufferSize) speedBuffer.shift();
+          speed = speedBuffer.reduce((a, b) => a + b, 0) / speedBuffer.length;
+          speedSum += speed;
+          speedCount++;
+        }
+
+        currentAltitude = position.coords.altitude;
+
+        const latlng = [position.coords.latitude, position.coords.longitude];
+        if (lastLatLng) {
+          const dist = getDistanceFromLatLonInKm(lastLatLng[0], lastLatLng[1], latlng[0], latlng[1]);
+          totalDistance += dist;
+        }
+        lastLatLng = latlng;
+
+        if (!map) {
+          map = L.map('map').setView(latlng, 14);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
+          marker = L.marker(latlng).addTo(map);
+        } else {
+          marker.setLatLng(latlng);
+          map.setView(latlng);
+        }
+
+        requestAnimationFrame(updateDisplay);
+      },
+      (err) => console.warn("GPS error:", err),
+      { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+    );
+
+    window.addEventListener("deviceorientation", (e) => {
+      const newLean = (e.gamma || 0) - leanOffset;
+      if (Math.abs(newLean - lean) > 1) {
+        lean = newLean;
+        requestAnimationFrame(updateDisplay);
       }
     });
 
-    function startLogging() {
-      if (watchId) return;
-      startTime = new Date();
-      logData = [["Time", "Latitude", "Longitude", "Speed(km/h)", "Altitude(m)", "Lean(°)", "Distance(km)", "Grip"]];
-      watchId = navigator.geolocation.watchPosition(handlePosition, console.error, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
-    }
-
-    function stopLogging() {
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
-        totalDistance = 0;
-        lastLat = null;
-        lastLon = null;
+    async function toggleWakeLock() {
+      if ('wakeLock' in navigator) {
+        try {
+          if (!wakeLock) {
+            wakeLock = await navigator.wakeLock.request('screen');
+            alert("Wake Lock is ON");
+            wakeLock.addEventListener('release', () => { wakeLock = null; });
+          } else {
+            await wakeLock.release();
+            wakeLock = null;
+            alert("Wake Lock is OFF");
+          }
+        } catch (err) {
+          console.error(`Wake Lock error: ${err.name}, ${err.message}`);
+        }
+      } else {
+        alert("Wake Lock API not supported.");
       }
     }
 
-    function handlePosition(pos) {
-      const lat = pos.coords.latitude;
-      const lon = pos.coords.longitude;
-      const alt = pos.coords.altitude || 0;
-      const speed = (pos.coords.speed || 0) * 3.6;
-      const time = new Date().toLocaleTimeString();
-
-      const lean = Math.floor(Math.random() * 60 - 30);  // Simulated lean
-      const grip = Math.random() > 0.5 ? "Good" : "Low";
-
-      speedEl.textContent = speed.toFixed(1);
-      altitudeEl.textContent = alt.toFixed(1);
-      leanEl.textContent = lean;
-      gripEl.textContent = grip;
-
-      if (lastLat !== null && lastLon !== null) {
-        const dist = getDistanceFromLatLonInKm(lat, lon, lastLat, lastLon);
-        totalDistance += dist;
-      }
-
-      distanceEl.textContent = totalDistance.toFixed(2);
-
-      const elapsed = (new Date() - startTime) / 3600000;
-      const avgSpeed = totalDistance / (elapsed || 1);
-      avgSpeedEl.textContent = avgSpeed.toFixed(2);
-
-      if (logging || logToggle.checked) {
-        logData.push([time, lat, lon, speed.toFixed(1), alt.toFixed(1), lean, totalDistance.toFixed(2), grip]);
-      }
-
-      lastLat = lat;
-      lastLon = lon;
-
-      drawLean(lean);
+    function setBackgroundImage(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        document.body.style.backgroundImage = `url(${e.target.result})`;
+      };
+      reader.readAsDataURL(file);
     }
 
     function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
       const R = 6371;
       const dLat = deg2rad(lat2 - lat1);
       const dLon = deg2rad(lon2 - lon1);
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
                 Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
     }
 
     function deg2rad(deg) {
       return deg * (Math.PI / 180);
-    }
-
-    function downloadCSV() {
-      let csvContent = "data:text/csv;charset=utf-8," + logData.map(e => e.join(",")).join("\n");
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", "ride_log.csv");
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    async function toggleWakeLock() {
-      try {
-        if (!wakeLock) {
-          wakeLock = await navigator.wakeLock.request("screen");
-          alert("Screen lock enabled");
-        } else {
-          wakeLock.release();
-          wakeLock = null;
-          alert("Screen lock disabled");
-        }
-      } catch (err) {
-        console.error("Wake Lock error:", err);
-      }
-    }
-
-    function drawLean(angle) {
-      const canvas = document.getElementById("leanCanvas");
-      const ctx = canvas.getContext("2d");
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Arc
-      ctx.beginPath();
-      ctx.arc(canvas.width / 2, canvas.height, canvas.width / 2 - 10, Math.PI, 0);
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 5;
-      ctx.stroke();
-
-      // Needle
-      const rad = (angle + 90) * (Math.PI / 180);
-      const len = canvas.height - 20;
-      const x = canvas.width / 2 + len * Math.cos(rad);
-      const y = canvas.height - len * Math.sin(rad);
-
-      ctx.beginPath();
-      ctx.moveTo(canvas.width / 2, canvas.height);
-      ctx.lineTo(x, y);
-      ctx.strokeStyle = "red";
-      ctx.lineWidth = 5;
-      ctx.stroke();
     }
   </script>
 </body>
