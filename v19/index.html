@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🏍️ Motorcycle Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      color: white;
+      background-color: black;
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.65);
+      z-index: 0;
+    }
+    h1, .info, .controls, #map {
+      position: relative;
+      z-index: 1;
+    }
+    h1 {
+      font-size: 1.5rem;
+      color: #58a6ff;
+      margin: 0.5rem 0;
+      text-align: center;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      margin: 0.5rem auto;
+      align-items: center;
+    }
+    button {
+      padding: 1rem 1.5rem;
+      background-color: #238636;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.2rem;
+      cursor: pointer;
+      min-width: 140px;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 80px;
+      height: 44px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0;
+      right: 0; bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 34px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 32px;
+      width: 32px;
+      left: 6px;
+      bottom: 6px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: #28a745;
+    }
+    input:checked + .slider:before {
+      transform: translateX(36px);
+    }
+    .log-label {
+      color: white;
+      margin-left: 0.5rem;
+      font-size: 1rem;
+    }
+    .metrics {
+      text-align: center;
+      margin-top: 1rem;
+    }
+    .metrics div {
+      font-size: 1.3rem;
+      margin: 0.3rem 0;
+    }
+    #speedDisplay {
+      font-size: 4rem;
+      font-weight: bold;
+      text-align: center;
+      margin-top: 0.8rem;
+      color: #00FF00;
+      text-shadow: 0 0 12px #00FF00;
+    }
+    #totalDistance {
+      color: #FFD700;
+      font-weight: bold;
+      text-shadow: 0 0 8px #FFD700;
+    }
+    #avgSpeed {
+      color: #1E90FF;
+      font-weight: bold;
+      text-shadow: 0 0 8px #1E90FF;
+    }
+    .lean-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 1.5rem;
+    }
+    .lean-meter {
+      width: 320px;
+      height: 160px;
+      position: relative;
+    }
+    .arc {
+      width: 100%;
+      height: 100%;
+      border: 24px solid #666;
+      border-bottom: none;
+      border-radius: 300px 300px 0 0;
+      position: relative;
+      box-sizing: border-box;
+    }
+    .needle {
+      width: 16px;
+      height: 140px;
+      background-color: red;
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      margin-left: -8px;
+      transform-origin: bottom center;
+      transform: rotate(0deg);
+      transition: transform 0.2s ease-out;
+      border-radius: 8px;
+    }
+    #map {
+      display: none;
+      height: 200px;
+      width: 100%;
+      margin-top: 1rem;
+      border-radius: 8px;
+    }
+    #changeBgBtn {
+      position: fixed;
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2;
+    }
+    #bgInput {
+      display: none;
+    }
+
+    /* Ride Report Modal */
+    #rideReport {
+      position: fixed;
+      top: 10%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #222;
+      color: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+      border: 2px solid #444;
+      z-index: 999;
+      display: none;
+      text-align: center;
+      width: 300px;
+    }
+
+    #rideReport button {
+      margin-top: 1rem;
+    }
+
+    #pdfContent {
+      background: white;
+      color: black;
+      padding: 1.5rem;
+      border-radius: 8px;
+      font-family: sans-serif;
+      text-align: left;
+      width: 260px;
+    }
+  </style>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+  <h1>🏍️ Motorcycle Tracker</h1>
+  <div class="controls">
+    <button onclick="calibrateLean()">Calibrate Lean</button>
+    <label class="switch">
+      <input type="checkbox" onchange="toggleLog(this)">
+      <span class="slider"></span>
+    </label>
+    <span class="log-label">Log</span>
+    <button onclick="clearLog()">Clear Log</button>
+    <button onclick="downloadCSV()">Download CSV</button>
+    <button onclick="toggleWakeLock()">Toggle Wake Lock</button>
+  </div>
+
+  <div class="speed-large" id="speedDisplay">0 km/h</div>
+
+  <div class="metrics">
+    <div>Total Distance: <span id="totalDistance">0.00</span> km</div>
+    <div>Average Speed: <span id="avgSpeed">0</span> km/h</div>
+  </div>
+
+  <div class="lean-section">
+    <div class="info">Lean: <strong id="leanDisplay">0</strong>°</div>
+    <div class="lean-meter">
+      <div class="arc"></div>
+      <div class="needle" id="leanNeedle"></div>
+    </div>
+    <div class="info">Grip: <strong id="gripDisplay">Good</strong></div>
+  </div>
+
+  <div id="map"></div>
+  <button id="changeBgBtn" onclick="document.getElementById('bgInput').click()">Change Background</button>
+  <input type="file" id="bgInput" accept="image/*" onchange="setBackgroundImage(event)" />
+
+  <div id="rideReport"></div>
+
+  <!-- Include your previous script block here exactly as in your latest working version -->
+
+</body>
+</html>
