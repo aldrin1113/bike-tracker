@@ -101,44 +101,47 @@
       font-size: 1.3rem;
       margin: 0.3rem 0;
     }
-    #speedDisplay {
+    
+   #speedDisplay {
   font-size: 4.5rem;
-  font-weight: bold;
+  font-weight: 900;
   text-align: center;
-  margin-top: 0.8rem;
-  color: green;
-  background-color: white;  
-  text-shadow:
-    0 0 10px #ffffff,
-    0 0 20px #ffffff,
-    0 0 30px #00ff66,
-    0 0 40px #00ff66,
-    0 0 50px #00ff66;
+  margin: 1rem auto;
+  padding: 1rem;
+  color: #00ff00;
+  background-color: #111;
+  border-radius: 16px;
+  max-width: 300px;
+  box-shadow: 0 0 20px #00ff00, 0 0 40px #00ff00;
+  text-shadow: 0 0 6px #ffffff, 0 0 10px #00ff00;
+  border: 2px solid #00ff00;
+   }
+  #totalDistance {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  margin-top: 0.3rem;
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: #FFD700;
+  background-color: #111;
+  border-radius: 12px;
+  box-shadow: 0 0 12px #FFD700;
+  border: 2px solid #FFD700;
 }
 
-#totalDistance {
-  color: green;
-  font-weight: bold;
+   #avgSpeed {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  margin-top: 0.3rem;
   font-size: 1.5rem;
-  background-color: white;
-  text-shadow:
-    0 0 8px #ffffff,
-    0 0 12px #FFD700,
-    0 0 20px #FFD700,
-    0 0 30px #FFD700;
-}
-
-#avgSpeed {
-  color: green;
-  font-weight: bold;
-  font-size: 1.5rem;
-  background-color: white;
-  text-shadow:
-    0 0 8px #ffffff,
-    0 0 12px #1E90FF,
-    0 0 20px #1E90FF,
-    0 0 30px #1E90FF;
-}
+  font-weight: 900;
+  color: #1E90FF;
+  background-color: #111;
+  border-radius: 12px;
+  box-shadow: 0 0 12px #1E90FF;
+  border: 2px solid #1E90FF;
+} 
+    
     
     
     .lean-section {
@@ -244,8 +247,8 @@
   <div class="speed-large" id="speedDisplay">0 km/h</div>
 
   <div class="metrics">
-    <div>Total Distance: <span id="totalDistance">0.00</span> km</div>
-    <div>Average Speed: <span id="avgSpeed">0</span> km/h</div>
+    <div><strong>Total Distance:</strong> <span id="totalDistance">0.00</span> km</div>
+<div><strong>Average Speed:</strong> <span id="avgSpeed">0</span> km/h</div>
   </div>
 
   <div class="lean-section">
