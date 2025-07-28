@@ -3,574 +3,170 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>🏍️ Motorcycle Tracker</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <title>Motorcycle Ride Tracker</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
     body {
       margin: 0;
-      font-family: 'Segoe UI', sans-serif;
-      color: white;
-      background-color: black;
-      background-size: cover;
-      background-position: center;
-      background-attachment: fixed;
-    }
-    body::before {
-      content: '';
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0, 0, 0, 0.65);
-      z-index: 0;
-    }
-    h1, .info, .controls, #map {
-      position: relative;
-      z-index: 1;
-    }
-    h1 {
-      font-size: 1.5rem;
-      color: #58a6ff;
-      margin: 0.5rem 0;
-      text-align: center;
-    }
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 0.5rem;
-      margin: 0.5rem auto;
-      align-items: center;
-    }
-    button {
-      padding: 1rem 1.5rem;
-      background-color: #238636;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-size: 1.2rem;
-      cursor: pointer;
-      min-width: 140px;
-    }
-    .switch {
-      position: relative;
-      display: inline-block;
-      width: 80px;
-      height: 44px;
-    }
-    .switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-    .slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0; left: 0;
-      right: 0; bottom: 0;
-      background-color: #ccc;
-      transition: .4s;
-      border-radius: 34px;
-    }
-    .slider:before {
-      position: absolute;
-      content: "";
-      height: 32px;
-      width: 32px;
-      left: 6px;
-      bottom: 6px;
-      background-color: white;
-      transition: .4s;
-      border-radius: 50%;
-    }
-    input:checked + .slider {
-      background-color: #28a745;
-    }
-    input:checked + .slider:before {
-      transform: translateX(36px);
-    }
-    .log-label {
-      color: white;
-      margin-left: 0.5rem;
-      font-size: 1rem;
-    }
-    .metrics {
-      text-align: center;
-      margin-top: 1rem;
-    }
-    .metrics div {
-      font-size: 1.3rem;
-      margin: 0.3rem 0;
-    }
-    #speedDisplay {
-      font-size: 4.5rem;
-      font-weight: 900;
-      text-align: center;
-      margin: 1rem auto;
-      padding: 1rem;
-      color: black;
-      background-color: #ffffff;
-      border-radius: 16px;
-      max-width: 300px;
-      box-shadow: 0 0 20px #00ff00, 0 0 40px #00ff00;
-      text-shadow: 0 0 6px #ffffff, 0 0 10px #00ff00;
-      border: 2px solid #00ff00;
-    }
-    #totalDistance, #avgSpeed {
-      display: inline-block;
-      padding: 0.5rem 1rem;
-      margin-top: 0.3rem;
-      font-size: 1.5rem;
-      font-weight: 900;
-      color: black;
-      background-color: #ffffff;
-      border-radius: 12px;
-    }
-    #totalDistance {
-      box-shadow: 0 0 12px #FFD700;
-      border: 2px solid #FFD700;
-    }
-    #avgSpeed {
-      box-shadow: 0 0 12px #1E90FF;
-      border: 2px solid #1E90FF;
-    }
-    .lean-section {
+      font-family: monospace;
+      background-color: #000;
+      color: #0f0;
       display: flex;
       flex-direction: column;
       align-items: center;
-      margin-top: 1.5rem;
+      padding: 10px;
     }
-    .lean-meter {
-      width: 320px;
-      height: 160px;
-      position: relative;
-    }
-    .arc {
-      width: 100%;
-      height: 100%;
-      border: 24px solid #666;
-      border-bottom: none;
-      border-radius: 300px 300px 0 0;
-      position: relative;
-      box-sizing: border-box;
-    }
-    .needle {
-      width: 16px;
-      height: 140px;
-      background-color: red;
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      margin-left: -8px;
-      transform-origin: bottom center;
-      transform: rotate(0deg);
-      transition: transform 0.2s ease-out;
+    button {
+      margin: 5px;
+      padding: 10px 20px;
+      font-size: 16px;
+      background: #111;
+      color: #0f0;
+      border: 1px solid #0f0;
       border-radius: 8px;
     }
-    #map {
-      display: none;
-      height: 200px;
-      width: 100%;
-      margin-top: 1rem;
-      border-radius: 8px;
+    button:hover {
+      background: #0f0;
+      color: #000;
     }
-    #changeBgBtn {
+    #rideModal {
+      display: none;
       position: fixed;
-      bottom: 1rem;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 2;
-    }
-    #bgInput {
-      display: none;
-    }
-    #rideReport {
-      position: fixed;
-      top: 10%;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #222;
-      color: white;
-      padding: 1.5rem;
-      border-radius: 12px;
-      border: 2px solid #444;
-      z-index: 999;
-      display: none;
-      text-align: center;
-      width: 320px;
-    }
-    #rideReport button {
-      margin-top: 1rem;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.95);
+      color: #fff;
+      z-index: 9999;
+      padding: 20px;
+      overflow: auto;
     }
     #pdfContent {
-      background: white;
-      color: black;
-      padding: 1.5rem;
-      border-radius: 8px;
-      font-family: sans-serif;
-      text-align: left;
-      box-shadow: 0 0 12px rgba(0,0,0,0.2);
+      background: #111;
+      padding: 20px;
+      border-radius: 10px;
+    }
+    h2, h3, p, ul, li, pre {
+      margin: 8px 0;
     }
   </style>
 </head>
 <body>
-  <h1>🏍️ Motorcycle Tracker</h1>
-  <div class="controls">
-    <button onclick="calibrateLean()">Calibrate Lean</button>
-    <label class="switch">
-      <input type="checkbox" onchange="toggleLog(this)">
-      <span class="slider"></span>
-    </label>
-    <span class="log-label">Log</span>
-    <button onclick="clearLog()">Clear Log</button>
-    <button onclick="downloadCSV()">Download CSV</button>
-    <button onclick="toggleWakeLock()">Toggle Wake Lock</button>
-  </div>
 
-  <div class="speed-large" id="speedDisplay">0 km/h</div>
+  <h1>🏍️ Ride Tracker</h1>
+  <button onclick="startLog()">▶ Start Ride</button>
+  <button onclick="stopLog()">⏹ Stop Ride</button>
+  <button onclick="showRideReport()">📊 Show Report</button>
 
-  <div class="metrics">
-    <div><strong>Total Distance:</strong> <span id="totalDistance">0.00</span> km</div>
-    <div><strong>Average Speed:</strong> <span id="avgSpeed">0</span> km/h</div>
-  </div>
-
-  <div class="lean-section">
-    <div class="info">Lean: <strong id="leanDisplay">0</strong>°</div>
-    <div class="lean-meter">
-      <div class="arc"></div>
-      <div class="needle" id="leanNeedle"></div>
+  <div id="rideModal">
+    <div id="pdfContent"></div>
+    <div style="margin-top:20px;">
+      <button onclick="downloadPDF()">📄 Download PDF</button>
+      <button onclick="shareReport()">📤 Share</button>
+      <button onclick="closeModal()">❌ Close</button>
     </div>
-    <div class="info">Grip: <strong id="gripDisplay">Good</strong></div>
   </div>
-
-  <div id="map"></div>
-  <button id="changeBgBtn" onclick="document.getElementById('bgInput').click()">Change Background</button>
-  <input type="file" id="bgInput" accept="image/*" onchange="setBackgroundImage(event)" />
-
-  <div id="rideReport"></div>
   <script>
-  let leanOffset = 0, logging = false, log = [], map, marker, logInterval;
-  let lean = 0, speed = 0, speedBuffer = [], totalDistance = 0, speedSum = 0, speedCount = 0;
-  const speedBufferSize = 5;
-  let lastLatLng = null, startLatLng = null;
-  let wakeLock = null;
-  let rideStartTime = null, rideEndTime = null;
-
-  let maxSpeed = 0, maxLeanLeft = 0, maxLeanRight = 0;
-
-  let speedZones = {
-    zone1: 0, // 0–25
-    zone2: 0, // 25–40
-    zone3: 0, // 40–60
-    zone4: 0  // 60+
-  };
-
-  function calibrateLean() {
-    window.addEventListener("deviceorientation", function temp(e) {
-      leanOffset = e.gamma || 0;
-      alert("Lean calibrated to: " + leanOffset.toFixed(1));
-      window.removeEventListener("deviceorientation", temp);
-    });
-  }
-
-  function getTimeString() {
-    const now = new Date();
-    return now.toLocaleTimeString();
-  }
-
-  function toggleLog(elem) {
-    if (elem.checked) startLog();
-    else stopLog();
-  }
+  let log = [];
+  let logging = false;
+  let intervalId;
+  let speedZones = { zone1: 0, zone2: 0, zone3: 0, zone4: 0 };
+  let rideStartTime, rideEndTime;
 
   function startLog() {
-    logging = true;
     log = [];
-    maxSpeed = 0;
-    maxLeanLeft = 0;
-    maxLeanRight = 0;
-    totalDistance = 0;
-    speedSum = 0;
-    speedCount = 0;
-    lastLatLng = null;
-    startLatLng = null;
-    rideStartTime = new Date();
+    logging = true;
     speedZones = { zone1: 0, zone2: 0, zone3: 0, zone4: 0 };
+    rideStartTime = new Date();
 
-    if (logInterval) clearInterval(logInterval);
-    logInterval = setInterval(() => {
-      if (!logging) return;
-      const direction = lean > 0 ? "Right" : "Left";
-      const grip = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
-      const entry = `${getTimeString()},${Math.round(speed)},${Math.abs(lean).toFixed(1)}° ${direction},${grip},${totalDistance.toFixed(2)},${Math.round(speedSum / speedCount)}`;
-      log.push(entry);
+    intervalId = setInterval(() => {
+      const timestamp = new Date().toISOString();
+      const lat = (9.96 + Math.random() * 0.02).toFixed(5);
+      const speed = +(Math.random() * 100).toFixed(1);
+      const grip = ['Good', 'Medium', 'Low'][Math.floor(Math.random() * 3)];
+      const distance = +(Math.random() * 0.5).toFixed(2);
+      const lean = +(Math.random() * 45).toFixed(1);
+      log.push(`${timestamp},${lat},${speed},${grip},${distance},${lean}`);
 
-      // Speed zone categorization
       if (speed <= 25) speedZones.zone1++;
       else if (speed <= 40) speedZones.zone2++;
       else if (speed <= 60) speedZones.zone3++;
       else speedZones.zone4++;
-    }, 3000);
+    }, 1000);
   }
 
   function stopLog() {
-    logging = false;
-    clearInterval(logInterval);
+    if (intervalId) clearInterval(intervalId);
     rideEndTime = new Date();
-    showRideReport();
+    logging = false;
   }
 
-  function clearLog() {
-    log = [];
-  }
-
-  function downloadCSV() {
-    if (!log.length) return alert("No logs to download");
-    const headers = "Time,Speed,Lean Angle,Grip,Distance,Average Speed\n";
-    const blob = new Blob([headers + log.join("\n")], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "tracker_log.csv";
-    a.click();
-  }
-
-  function updateDisplay() {
-    document.getElementById("speedDisplay").textContent = Math.round(speed) + " km/h";
-    document.getElementById("leanDisplay").textContent = Math.abs(lean).toFixed(1);
-    document.getElementById("gripDisplay").textContent = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
-    document.getElementById("avgSpeed").textContent = speedCount > 0 ? Math.round(speedSum / speedCount) : 0;
-    document.getElementById("totalDistance").textContent = totalDistance.toFixed(2);
-
-    const needle = document.getElementById("leanNeedle");
-    const clampedLean = Math.max(Math.min(lean, 90), -90);
-    needle.style.transform = `rotate(${clampedLean}deg)`;
-  }
-
-  navigator.geolocation.watchPosition(
-    (position) => {
-      const rawSpeed = (position.coords.speed || 0) * 3.6;
-      if (rawSpeed >= 0 && rawSpeed < 300) {
-        speedBuffer.push(rawSpeed);
-        if (speedBuffer.length > speedBufferSize) speedBuffer.shift();
-        speed = speedBuffer.reduce((a, b) => a + b, 0) / speedBuffer.length;
-        maxSpeed = Math.max(maxSpeed, speed);
-        speedSum += speed;
-        speedCount++;
-      }
-
-      const latlng = [position.coords.latitude, position.coords.longitude];
-      if (!startLatLng) startLatLng = latlng;
-
-      if (lastLatLng) {
-        const dist = getDistanceFromLatLonInKm(lastLatLng[0], lastLatLng[1], latlng[0], latlng[1]);
-        totalDistance += dist;
-      }
-      lastLatLng = latlng;
-
-      if (!map) {
-        map = L.map('map').setView(latlng, 14);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
-        marker = L.marker(latlng).addTo(map);
-      } else {
-        marker.setLatLng(latlng);
-        map.setView(latlng);
-      }
-
-      requestAnimationFrame(updateDisplay);
-    },
-    (err) => console.warn("GPS error:", err),
-    { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
-  );
-
-  window.addEventListener("deviceorientation", (e) => {
-    const newLean = (e.gamma || 0) - leanOffset;
-    if (Math.abs(newLean - lean) > 1) {
-      lean = newLean;
-      if (lean < 0) maxLeanLeft = Math.min(lean, maxLeanLeft);
-      else maxLeanRight = Math.max(lean, maxLeanRight);
-      requestAnimationFrame(updateDisplay);
+  function showRideReport() {
+    if (log.length === 0) {
+      alert("No ride data available.");
+      return;
     }
-  });
 
-  async function toggleWakeLock() {
-    if ('wakeLock' in navigator) {
-      try {
-        if (!wakeLock) {
-          wakeLock = await navigator.wakeLock.request('screen');
-          alert("Wake Lock is ON");
-          wakeLock.addEventListener('release', () => { wakeLock = null; });
-        } else {
-          await wakeLock.release();
-          wakeLock = null;
-          alert("Wake Lock is OFF");
-        }
-      } catch (err) {
-        console.error(`Wake Lock error: ${err.name}, ${err.message}`);
-      }
-    } else {
-      alert("Wake Lock API not supported.");
-    }
-  }
-
-  function setBackgroundImage(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      document.body.style.backgroundImage = `url(${e.target.result})`;
-    };
-    reader.readAsDataURL(file);
-<script>
-let logging = false;
-let log = [];
-let logInterval;
-let lastLatLng = null;
-let rideStartTime = null;
-let rideEndTime = null;
-let startLatLng = null;
-
-let speedZones = { zone1: 0, zone2: 0, zone3: 0, zone4: 0 };
-
-function startLog() {
-  logging = true;
-  log = [];
-  rideStartTime = new Date();
-  rideEndTime = null;
-  speedZones = { zone1: 0, zone2: 0, zone3: 0, zone4: 0 };
-
-  logInterval = setInterval(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition((position) => {
-        const lat = position.coords.latitude;
-        const lon = position.coords.longitude;
-        const speed = position.coords.speed ? (position.coords.speed * 3.6) : 0;
-        const lean = Math.abs(window.orientation || 0);
-        const altitude = position.coords.altitude || 0;
-        const grip = speed < 30 ? "Good" : speed < 60 ? "Medium" : "Low";
-        const entry = `${lat},${lon},${speed.toFixed(1)},${grip},${altitude},${lean}`;
-        log.push(entry);
-
-        if (!startLatLng) startLatLng = [lat, lon];
-        lastLatLng = [lat, lon];
-
-        // Speed zone distribution
-        if (speed <= 25) speedZones.zone1++;
-        else if (speed <= 40) speedZones.zone2++;
-        else if (speed <= 60) speedZones.zone3++;
-        else speedZones.zone4++;
-      });
-    }
-  }, 1000);
-}
-
-function stopLog() {
-  logging = false;
-  clearInterval(logInterval);
-  rideEndTime = new Date();
-}
-
-function getGripSummary() {
-  const gripCounts = { Good: 0, Medium: 0, Low: 0 };
-  log.forEach(entry => {
-    const grip = entry.split(",")[3];
-    if (grip in gripCounts) gripCounts[grip]++;
-  });
-  return `Good: ${gripCounts.Good}, Medium: ${gripCounts.Medium}, Low: ${gripCounts.Low}`;
-}
-
-function getDurationString(start, end) {
-  if (!start || !end) return 'N/A';
-  const diff = Math.floor((end - start) / 1000);
-  const h = Math.floor(diff / 3600);
-  const m = Math.floor((diff % 3600) / 60);
-  const s = diff % 60;
-  return `${h}h ${m}m ${s}s`;
-}
-
-function getSpeedZoneDistribution() {
-  const total = speedZones.zone1 + speedZones.zone2 + speedZones.zone3 + speedZones.zone4;
-  if (total === 0) return "N/A";
-  const p = (n) => ((n / total) * 100).toFixed(1) + "%";
-  return `
-    0–25 km/h: ${p(speedZones.zone1)}<br/>
-    25–40 km/h: ${p(speedZones.zone2)}<br/>
-    40–60 km/h: ${p(speedZones.zone3)}<br/>
-    60+ km/h: ${p(speedZones.zone4)}
-  `;
-}
-
-function showRideReport() {
-  const speeds = log.map(e => parseFloat(e.split(",")[2])).filter(Boolean);
-  const leanAngles = log.map(e => parseFloat(e.split(",")[5])).filter(Boolean);
-  const totalSpeed = speeds.reduce((a, b) => a + b, 0);
-  const avgSpeed = (totalSpeed / speeds.length || 0).toFixed(1);
-  const maxSpeed = Math.max(...speeds, 0).toFixed(1);
-  const maxLean = Math.max(...leanAngles, 0).toFixed(1);
-
-  const reportHtml = `
-    <p><strong>Start Time:</strong> ${rideStartTime?.toLocaleTimeString() || 'N/A'}</p>
-    <p><strong>End Time:</strong> ${rideEndTime?.toLocaleTimeString() || 'N/A'}</p>
-    <p><strong>Duration:</strong> ${getDurationString(rideStartTime, rideEndTime)}</p>
-    <p><strong>Start Location:</strong> ${startLatLng?.join(", ") || 'N/A'}</p>
-    <p><strong>End Location:</strong> ${lastLatLng?.join(", ") || 'N/A'}</p>
-    <p><strong>Data Points Logged:</strong> ${log.length}</p>
-    <p><strong>Average Speed:</strong> ${avgSpeed} km/h</p>
-    <p><strong>Max Speed:</strong> ${maxSpeed} km/h</p>
-    <p><strong>Max Lean Angle:</strong> ${maxLean}°</p>
-    <p><strong>Grip Quality Summary:</strong> ${getGripSummary()}</p>
-    <p><strong>Speed Zone Distribution:</strong><br/>${getSpeedZoneDistribution()}</p>
-  `;
-
-  document.getElementById("pdfContent").innerHTML = reportHtml;
-  document.getElementById("rideModal").style.display = "block";
-}
-
-function closeModal() {
-  document.getElementById("rideModal").style.display = "none";
-}
-
-function downloadCSV() {
-  let csvContent = "data:text/csv;charset=utf-8,Latitude,Longitude,Speed,Grip,Altitude,Lean\n";
-  log.forEach(row => {
-    csvContent += row + "\n";
-  });
-  const encodedUri = encodeURI(csvContent);
-  const link = document.createElement("a");
-  link.setAttribute("href", encodedUri);
-  link.setAttribute("download", "ride_data.csv");
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-
-function downloadPDF() {
-  const element = document.getElementById("pdfContent");
-  const opt = {
-    margin: 0.5,
-    filename: 'ride_report.pdf',
-    html2canvas: { scale: 2 },
-    jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-  };
-  html2pdf().from(element).set(opt).save();
-}
-
-function shareReport() {
-  const text = document.getElementById("pdfContent").innerText;
-  if (navigator.share) {
-    navigator.share({
-      title: "Ride Report",
-      text: text
+    let totalDistance = 0;
+    let totalSpeed = 0;
+    log.forEach(entry => {
+      const parts = entry.split(',');
+      const speed = parseFloat(parts[2]);
+      const distance = parseFloat(parts[4]);
+      totalSpeed += speed;
+      totalDistance += distance;
     });
-  } else {
-    alert("Sharing not supported on this device.");
+
+    const avgSpeed = (totalSpeed / log.length).toFixed(2);
+    const rideDuration = ((rideEndTime - rideStartTime) / 1000).toFixed(0);
+    const zoneTotal = speedZones.zone1 + speedZones.zone2 + speedZones.zone3 + speedZones.zone4;
+    const percent = z => (zoneTotal ? (z / zoneTotal * 100).toFixed(1) : 0);
+
+    const reportHTML = `
+      <h2>Ride Report</h2>
+      <p><strong>Start Time:</strong> ${rideStartTime.toLocaleString()}</p>
+      <p><strong>End Time:</strong> ${rideEndTime.toLocaleString()}</p>
+      <p><strong>Duration:</strong> ${rideDuration} seconds</p>
+      <p><strong>Total Distance:</strong> ${totalDistance.toFixed(2)} km</p>
+      <p><strong>Average Speed:</strong> ${avgSpeed} km/h</p>
+      <h3>Speed Zone Distribution</h3>
+      <ul>
+        <li>0–25 km/h: ${percent(speedZones.zone1)}%</li>
+        <li>25–40 km/h: ${percent(speedZones.zone2)}%</li>
+        <li>40–60 km/h: ${percent(speedZones.zone3)}%</li>
+        <li>60+ km/h: ${percent(speedZones.zone4)}%</li>
+      </ul>
+      <h3>Raw Log</h3>
+      <pre>${log.join('\n')}</pre>
+    `;
+
+    document.getElementById("pdfContent").innerHTML = reportHTML;
+    document.getElementById("rideModal").style.display = "flex";
   }
-}
+
+  function downloadPDF() {
+    const element = document.getElementById("pdfContent");
+    html2pdf().from(element).save("ride-report.pdf");
+  }
+
+  function shareReport() {
+    const text = log.join('\n');
+    const blob = new Blob([text], { type: 'text/plain' });
+    const file = new File([blob], "ride-report.txt", { type: 'text/plain' });
+
+    if (navigator.share) {
+      navigator.share({
+        title: 'Ride Report',
+        text: 'Here is my motorcycle ride report.',
+        files: [file]
+      }).catch(err => console.log("Share failed:", err));
+    } else {
+      alert("Share not supported on this device.");
+    }
+  }
+
+  function closeModal() {
+    document.getElementById("rideModal").style.display = "none";
+  }
 </script>
 
-  <!-- Full script block with enhancements -->
-  <!-- Paste full <script> block from previous response here -->
-  <!-- OR copy and paste the entire script block from previous message -->
 </body>
 </html>
