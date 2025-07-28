@@ -3,226 +3,507 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Motorcycle Ride Tracker</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <title>🏍️ Motorcycle Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
     body {
       margin: 0;
-      font-family: Arial, sans-serif;
-      background: #111;
-      color: #0f0;
+      font-family: 'Segoe UI', sans-serif;
+      color: white;
+      background-color: black;
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
     }
-    #map {
-      height: 40vh;
-    }
-    .info {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      padding: 10px;
-      background: #000;
-      font-size: 1.2em;
-      text-align: center;
-    }
-    .info div {
-      padding: 8px;
-      background: #222;
-      border-radius: 10px;
-    }
-    .controls {
-      text-align: center;
-      padding: 10px;
-    }
-    .controls button {
-      font-size: 1.2em;
-      margin: 10px;
-      padding: 10px 20px;
-      background: #0f0;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-    .controls button:hover {
-      background: #3f3;
-    }
-    #reportModal {
-      display: none;
+    body::before {
+      content: '';
       position: fixed;
-      z-index: 10;
       top: 0; left: 0;
       width: 100%; height: 100%;
-      background: rgba(0, 0, 0, 0.95);
-      color: #0f0;
-      overflow: auto;
-      padding: 20px;
+      background: rgba(0, 0, 0, 0.65);
+      z-index: 0;
     }
-    #reportModal pre {
-      white-space: pre-wrap;
-      font-size: 1em;
+    h1, .info, .controls, #map {
+      position: relative;
+      z-index: 1;
     }
-    .modal-btns {
-      margin-top: 15px;
+    h1 {
+      font-size: 1.5rem;
+      color: #58a6ff;
+      margin: 0.5rem 0;
+      text-align: center;
     }
-    .modal-btns button {
-      margin-right: 10px;
-      font-size: 1em;
-      background: #0f0;
-      color: #000;
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      margin: 0.5rem auto;
+      align-items: center;
+    }
+    button {
+      padding: 1rem 1.5rem;
+      background-color: #238636;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.2rem;
+      cursor: pointer;
+      min-width: 140px;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 80px;
+      height: 44px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0;
+      right: 0; bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 34px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 32px;
+      width: 32px;
+      left: 6px;
+      bottom: 6px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: #28a745;
+    }
+    input:checked + .slider:before {
+      transform: translateX(36px);
+    }
+    .log-label {
+      color: white;
+      margin-left: 0.5rem;
+      font-size: 1rem;
+    }
+    .metrics {
+      text-align: center;
+      margin-top: 1rem;
+    }
+    .metrics div {
+      font-size: 1.3rem;
+      margin: 0.3rem 0;
+    }
+
+    #speedDisplay {
+      font-size: 4.5rem;
+      font-weight: 900;
+      text-align: center;
+      margin: 1rem auto;
+      padding: 1rem;
+      color: black;
+      background-color: #ffffff;
+      border-radius: 16px;
+      max-width: 300px;
+      box-shadow: 0 0 20px #00ff00, 0 0 40px #00ff00;
+      text-shadow: 0 0 6px #ffffff, 0 0 10px #00ff00;
+      border: 2px solid #00ff00;
+    }
+
+    #totalDistance, #avgSpeed {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      margin-top: 0.3rem;
+      font-size: 1.5rem;
+      font-weight: 900;
+      color: black;
+      background-color: #ffffff;
+      border-radius: 12px;
+    }
+
+    #totalDistance {
+      box-shadow: 0 0 12px #FFD700;
+      border: 2px solid #FFD700;
+    }
+
+    #avgSpeed {
+      box-shadow: 0 0 12px #1E90FF;
+      border: 2px solid #1E90FF;
+    }
+
+    .lean-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 1.5rem;
+    }
+    .lean-meter {
+      width: 320px;
+      height: 160px;
+      position: relative;
+    }
+    .arc {
+      width: 100%;
+      height: 100%;
+      border: 24px solid #666;
+      border-bottom: none;
+      border-radius: 300px 300px 0 0;
+      position: relative;
+      box-sizing: border-box;
+    }
+    .needle {
+      width: 16px;
+      height: 140px;
+      background-color: red;
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      margin-left: -8px;
+      transform-origin: bottom center;
+      transform: rotate(0deg);
+      transition: transform 0.2s ease-out;
+      border-radius: 8px;
+    }
+    #map {
+      display: none;
+      height: 200px;
+      width: 100%;
+      margin-top: 1rem;
+      border-radius: 8px;
+    }
+    #changeBgBtn {
+      position: fixed;
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2;
+    }
+    #bgInput {
+      display: none;
+    }
+
+    #rideReport {
+      position: fixed;
+      top: 10%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #222;
+      color: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+      border: 2px solid #444;
+      z-index: 999;
+      display: none;
+      text-align: center;
+      width: 300px;
+    }
+
+    #rideReport button {
+      margin-top: 1rem;
+    }
+
+    #pdfContent {
+      background: white;
+      color: black;
+      padding: 1.5rem;
+      border-radius: 8px;
+      font-family: sans-serif;
+      text-align: left;
+      width: 260px;
     }
   </style>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
-  <div id="map"></div>
-  <div class="info">
-    <div>Speed: <span id="speed">0</span> km/h</div>
-    <div>Lean: <span id="lean">0</span>°</div>
-    <div>Distance: <span id="distance">0</span> km</div>
-    <div>Grip: <span id="grip">Good</span></div>
-    <div>Time: <span id="time">--:--:--</span></div>
-  </div>
+  <h1>🏍️ Motorcycle Tracker</h1>
   <div class="controls">
-    <button onclick="startLog()">Start Ride</button>
-    <button onclick="stopLog()">Stop Ride</button>
-    <button onclick="showRideReport()">View Report</button>
+    <button onclick="calibrateLean()">Calibrate Lean</button>
+    <label class="switch">
+      <input type="checkbox" onchange="toggleLog(this)">
+      <span class="slider"></span>
+    </label>
+    <span class="log-label">Log</span>
+    <button onclick="clearLog()">Clear Log</button>
+    <button onclick="downloadCSV()">Download CSV</button>
+    <button onclick="toggleWakeLock()">Toggle Wake Lock</button>
   </div>
 
-  <div id="reportModal">
-    <h2>Ride Report</h2>
-    <pre id="rideReport"></pre>
-    <div class="modal-btns">
-      <button onclick="downloadPDF()">Download PDF</button>
-      <button onclick="shareReport()">Share</button>
-      <button onclick="document.getElementById('reportModal').style.display='none'">Close</button>
+  <div class="speed-large" id="speedDisplay">0 km/h</div>
+
+  <div class="metrics">
+    <div><strong>Total Distance:</strong> <span id="totalDistance">0.00</span> km</div>
+    <div><strong>Average Speed:</strong> <span id="avgSpeed">0</span> km/h</div>
+  </div>
+
+  <div class="lean-section">
+    <div class="info">Lean: <strong id="leanDisplay">0</strong>°</div>
+    <div class="lean-meter">
+      <div class="arc"></div>
+      <div class="needle" id="leanNeedle"></div>
     </div>
+    <div class="info">Grip: <strong id="gripDisplay">Good</strong></div>
   </div>
+
+  <div id="map"></div>
+  <button id="changeBgBtn" onclick="document.getElementById('bgInput').click()">Change Background</button>
+  <input type="file" id="bgInput" accept="image/*" onchange="setBackgroundImage(event)" />
+
+  <div id="rideReport"></div>
+
   <script>
-  let map = L.map('map').setView([9.9312, 76.2673], 13);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+  
+    let leanOffset = 0, logging = false, log = [], map, marker, logInterval;
+let lean = 0, speed = 0, speedBuffer = [], totalDistance = 0, speedSum = 0, speedCount = 0;
+const speedBufferSize = 5;
+let lastLatLng = null;
+let wakeLock = null;
 
-  let marker = null;
-  let path = [];
-  let polyline = null;
-  let logging = false;
-  let startTime, intervalId;
-  let totalDistance = 0;
-  let lastPos = null;
-  let speedBuckets = { '0-25': 0, '25-40': 0, '40-60': 0, '60+': 0 };
+let maxSpeed = 0, maxLeanLeft = 0, maxLeanRight = 0;
+let startTime = null, endTime = null;
+let zone1 = 0, zone2 = 0, zone3 = 0, zone4 = 0;
 
-  function updateUI(speed, lean, grip) {
-    document.getElementById('speed').innerText = speed.toFixed(1);
-    document.getElementById('lean').innerText = lean.toFixed(1);
-    document.getElementById('grip').innerText = grip;
-    document.getElementById('distance').innerText = totalDistance.toFixed(2);
-    document.getElementById('time').innerText = new Date().toLocaleTimeString();
-  }
+function calibrateLean() {
+  window.addEventListener("deviceorientation", function temp(e) {
+    leanOffset = e.gamma || 0;
+    alert("Lean calibrated to: " + leanOffset.toFixed(1));
+    window.removeEventListener("deviceorientation", temp);
+  });
+}
 
-  function calcDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371;
-    const dLat = (lat2-lat1)*Math.PI/180;
-    const dLon = (lon2-lon1)*Math.PI/180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  }
+function getTimeString() {
+  const now = new Date();
+  return now.toLocaleTimeString();
+}
 
-  function updatePosition(pos) {
-    const lat = pos.coords.latitude;
-    const lon = pos.coords.longitude;
-    const speed = pos.coords.speed ? pos.coords.speed * 3.6 : 0;
+function toggleLog(elem) {
+  if (elem.checked) startLog();
+  else stopLog();
+}
 
-    if (lastPos) {
-      const d = calcDistance(lastPos.lat, lastPos.lon, lat, lon);
-      totalDistance += d;
+function startLog() {
+  logging = true;
+  log = [];
+  maxSpeed = 0;
+  maxLeanLeft = 0;
+  maxLeanRight = 0;
+  totalDistance = 0;
+  speedSum = 0;
+  speedCount = 0;
+  zone1 = zone2 = zone3 = zone4 = 0;
+  lastLatLng = null;
+  startTime = new Date();
+
+  if (logInterval) clearInterval(logInterval);
+  logInterval = setInterval(() => {
+    if (!logging) return;
+    const direction = lean > 0 ? "Right" : "Left";
+    const grip = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
+
+    // Speed zones
+    if (speed <= 25) zone1++;
+    else if (speed <= 40) zone2++;
+    else if (speed <= 60) zone3++;
+    else zone4++;
+
+    const entry = `${getTimeString()},${Math.round(speed)},${Math.abs(lean).toFixed(1)}° ${direction},${grip},${totalDistance.toFixed(2)},${Math.round(speedSum / speedCount)}`;
+    log.push(entry);
+  }, 3000);
+}
+
+function stopLog() {
+  logging = false;
+  endTime = new Date();
+  clearInterval(logInterval);
+  showRideReport();
+}
+
+function clearLog() {
+  log = [];
+}
+
+function downloadCSV() {
+  if (!log.length) return alert("No logs to download");
+  const headers = "Time,Speed,Lean Angle,Grip,Distance,Average Speed\n";
+  const blob = new Blob([headers + log.join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "tracker_log.csv";
+  a.click();
+}
+
+function updateDisplay() {
+  document.getElementById("speedDisplay").textContent = Math.round(speed) + " km/h";
+  document.getElementById("leanDisplay").textContent = Math.abs(lean).toFixed(1);
+  document.getElementById("gripDisplay").textContent = Math.abs(lean) > 50 ? "Low" : Math.abs(speed) > 70 ? "Medium" : "Good";
+  document.getElementById("avgSpeed").textContent = speedCount > 0 ? Math.round(speedSum / speedCount) : 0;
+  document.getElementById("totalDistance").textContent = totalDistance.toFixed(2);
+
+  const needle = document.getElementById("leanNeedle");
+  const clampedLean = Math.max(Math.min(lean, 90), -90);
+  needle.style.transform = `rotate(${clampedLean}deg)`;
+}
+
+navigator.geolocation.watchPosition(
+  (position) => {
+    const rawSpeed = (position.coords.speed || 0) * 3.6;
+    if (rawSpeed >= 0 && rawSpeed < 300) {
+      speedBuffer.push(rawSpeed);
+      if (speedBuffer.length > speedBufferSize) speedBuffer.shift();
+      speed = speedBuffer.reduce((a, b) => a + b, 0) / speedBuffer.length;
+      maxSpeed = Math.max(maxSpeed, speed);
+      speedSum += speed;
+      speedCount++;
     }
-    lastPos = { lat, lon };
 
-    path.push([lat, lon]);
-    if (polyline) map.removeLayer(polyline);
-    polyline = L.polyline(path, { color: 'lime' }).addTo(map);
+    const latlng = [position.coords.latitude, position.coords.longitude];
+    if (lastLatLng) {
+      const dist = getDistanceFromLatLonInKm(lastLatLng[0], lastLatLng[1], latlng[0], latlng[1]);
+      totalDistance += dist;
+    }
+    lastLatLng = latlng;
 
-    if (!marker) {
-      marker = L.marker([lat, lon]).addTo(map);
+    if (!map) {
+      map = L.map('map').setView(latlng, 14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
+      marker = L.marker(latlng).addTo(map);
     } else {
-      marker.setLatLng([lat, lon]);
+      marker.setLatLng(latlng);
+      map.setView(latlng);
     }
 
-    map.setView([lat, lon], 16);
+    requestAnimationFrame(updateDisplay);
+  },
+  (err) => console.warn("GPS error:", err),
+  { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+);
 
-    let lean = Math.min(45, Math.abs(Math.sin(speed / 100) * 45));
-    let grip = speed > 70 ? "Low" : "Good";
-
-    if (speed <= 25) speedBuckets['0-25']++;
-    else if (speed <= 40) speedBuckets['25-40']++;
-    else if (speed <= 60) speedBuckets['40-60']++;
-    else speedBuckets['60+']++;
-
-    updateUI(speed, lean, grip);
+window.addEventListener("deviceorientation", (e) => {
+  const newLean = (e.gamma || 0) - leanOffset;
+  if (Math.abs(newLean - lean) > 1) {
+    lean = newLean;
+    if (lean < 0) maxLeanLeft = Math.min(lean, maxLeanLeft);
+    else maxLeanRight = Math.max(lean, maxLeanRight);
+    requestAnimationFrame(updateDisplay);
   }
+});
 
-  function startLog() {
-    if (!navigator.geolocation) {
-      alert("Geolocation not supported.");
-      return;
-    }
-    logging = true;
-    path = [];
-    totalDistance = 0;
-    speedBuckets = { '0-25': 0, '25-40': 0, '40-60': 0, '60+': 0 };
-    startTime = Date.now();
-    intervalId = setInterval(() => {
-      navigator.geolocation.getCurrentPosition(updatePosition);
-    }, 2000);
-  }
-
-  function stopLog() {
-    logging = false;
-    clearInterval(intervalId);
-  }
-
-  function showRideReport() {
-    const totalPoints = Object.values(speedBuckets).reduce((a, b) => a + b, 0);
-    const pct = (n) => totalPoints > 0 ? ((n / totalPoints) * 100).toFixed(1) : "0.0";
-    const duration = ((Date.now() - startTime) / 60000).toFixed(1);
-    const avgSpeed = totalDistance / (duration / 60);
-
-    const report = `
-Total Distance: ${totalDistance.toFixed(2)} km
-Average Speed: ${avgSpeed.toFixed(2)} km/h
-Duration: ${duration} mins
-
-Speed Zone Distribution:
-  0–25 km/h : ${pct(speedBuckets['0-25'])}%
-  25–40 km/h: ${pct(speedBuckets['25-40'])}%
-  40–60 km/h: ${pct(speedBuckets['40-60'])}%
-  60+ km/h  : ${pct(speedBuckets['60+'])}%
-    `.trim();
-
-    document.getElementById('rideReport').innerText = report;
-    document.getElementById('reportModal').style.display = 'block';
-  }
-
-  function downloadPDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    doc.setFont("Courier", "normal");
-    doc.setFontSize(12);
-    doc.text(document.getElementById('rideReport').innerText, 10, 10);
-    doc.save("ride_report.pdf");
-  }
-
-  async function shareReport() {
-    const text = document.getElementById('rideReport').innerText;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: "Ride Report", text });
-      } catch (err) {
-        alert("Share cancelled or failed.");
+async function toggleWakeLock() {
+  if ('wakeLock' in navigator) {
+    try {
+      if (!wakeLock) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        alert("Wake Lock is ON");
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      } else {
+        await wakeLock.release();
+        wakeLock = null;
+        alert("Wake Lock is OFF");
       }
-    } else {
-      alert("Web Share API not supported on this device.");
+    } catch (err) {
+      console.error(`Wake Lock error: ${err.name}, ${err.message}`);
     }
+  } else {
+    alert("Wake Lock API not supported.");
   }
+}
+
+function setBackgroundImage(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    document.body.style.backgroundImage = `url(${e.target.result})`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function deg2rad(deg) {
+  return deg * (Math.PI / 180);
+}
+
+function showRideReport() {
+  const reportDiv = document.getElementById("rideReport");
+  const durationMins = Math.round((endTime - startTime) / 60000);
+  const totalZones = zone1 + zone2 + zone3 + zone4;
+  const getPct = (val) => totalZones ? ((val / totalZones) * 100).toFixed(1) : "0.0";
+
+  reportDiv.innerHTML = `
+    <div id="pdfContent">
+      <h2>🏁 Ride Summary</h2>
+      <p><strong>Duration:</strong> ${durationMins} minutes</p>
+      <p><strong>Max Speed:</strong> ${Math.round(maxSpeed)} km/h</p>
+      <p><strong>Avg Speed:</strong> ${speedCount > 0 ? Math.round(speedSum / speedCount) : 0} km/h</p>
+      <p><strong>Total Distance:</strong> ${totalDistance.toFixed(2)} km</p>
+      <p><strong>Max Lean Left:</strong> ${Math.abs(maxLeanLeft).toFixed(1)}°</p>
+      <p><strong>Max Lean Right:</strong> ${Math.abs(maxLeanRight).toFixed(1)}°</p>
+      <p><strong>Speed Distribution:</strong></p>
+      <ul>
+        <li>1–25 km/h: ${getPct(zone1)}%</li>
+        <li>25–40 km/h: ${getPct(zone2)}%</li>
+        <li>40–60 km/h: ${getPct(zone3)}%</li>
+        <li>60+ km/h: ${getPct(zone4)}%</li>
+      </ul>
+      <button onclick="saveReportAsPDF()">Save as PDF</button>
+      <button onclick="sharePDF()">Share Report</button>
+      <button onclick="document.getElementById('rideReport').style.display='none'">Close</button>
+    </div>
+  `;
+  reportDiv.style.display = "block";
+}
+
+function saveReportAsPDF() {
+  const element = document.getElementById("pdfContent");
+  html2pdf().from(element).save("Ride_Summary.pdf");
+}
+
+async function sharePDF() {
+  const element = document.getElementById("pdfContent");
+  const opt = {
+    margin: 0.5,
+    filename: 'Ride_Summary.pdf',
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2 },
+    jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+  };
+
+  const blob = await html2pdf().from(element).set(opt).outputPdf('blob');
+  const file = new File([blob], "Ride_Summary.pdf", { type: "application/pdf" });
+
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: "Ride Summary",
+        text: "Here's my motorcycle ride summary 🚀",
+        files: [file]
+      });
+    } catch (err) {
+      console.error("Share failed:", err);
+    }
+  } else {
+    alert("Sharing not supported on this browser.");
+  }
+}
 </script>
 </body>
 </html>
