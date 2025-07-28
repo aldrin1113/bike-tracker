@@ -422,82 +422,151 @@
       document.body.style.backgroundImage = `url(${e.target.result})`;
     };
     reader.readAsDataURL(file);
-  }
+<script>
+let logging = false;
+let log = [];
+let logInterval;
+let lastLatLng = null;
+let rideStartTime = null;
+let rideEndTime = null;
+let startLatLng = null;
 
-  function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
-    const R = 6371;
-    const dLat = deg2rad(lat2 - lat1);
-    const dLon = deg2rad(lon2 - lon1);
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  }
+let speedZones = { zone1: 0, zone2: 0, zone3: 0, zone4: 0 };
 
-  function deg2rad(deg) {
-    return deg * (Math.PI / 180);
-  }
+function startLog() {
+  logging = true;
+  log = [];
+  rideStartTime = new Date();
+  rideEndTime = null;
+  speedZones = { zone1: 0, zone2: 0, zone3: 0, zone4: 0 };
 
-  function getDurationString(start, end) {
-    if (!start || !end) return 'N/A';
-    const diff = Math.floor((end - start) / 1000);
-    const h = Math.floor(diff / 3600);
-    const m = Math.floor((diff % 3600) / 60);
-    const s = diff % 60;
-    return `${h}h ${m}m ${s}s`;
-  }
+  logInterval = setInterval(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        const speed = position.coords.speed ? (position.coords.speed * 3.6) : 0;
+        const lean = Math.abs(window.orientation || 0);
+        const altitude = position.coords.altitude || 0;
+        const grip = speed < 30 ? "Good" : speed < 60 ? "Medium" : "Low";
+        const entry = `${lat},${lon},${speed.toFixed(1)},${grip},${altitude},${lean}`;
+        log.push(entry);
 
-  function getGripSummary() {
-    const gripCounts = { Good: 0, Medium: 0, Low: 0 };
-    log.forEach(entry => {
-      const grip = entry.split(",")[3];
-      if (grip in gripCounts) gripCounts[grip]++;
+        if (!startLatLng) startLatLng = [lat, lon];
+        lastLatLng = [lat, lon];
+
+        // Speed zone distribution
+        if (speed <= 25) speedZones.zone1++;
+        else if (speed <= 40) speedZones.zone2++;
+        else if (speed <= 60) speedZones.zone3++;
+        else speedZones.zone4++;
+      });
+    }
+  }, 1000);
+}
+
+function stopLog() {
+  logging = false;
+  clearInterval(logInterval);
+  rideEndTime = new Date();
+}
+
+function getGripSummary() {
+  const gripCounts = { Good: 0, Medium: 0, Low: 0 };
+  log.forEach(entry => {
+    const grip = entry.split(",")[3];
+    if (grip in gripCounts) gripCounts[grip]++;
+  });
+  return `Good: ${gripCounts.Good}, Medium: ${gripCounts.Medium}, Low: ${gripCounts.Low}`;
+}
+
+function getDurationString(start, end) {
+  if (!start || !end) return 'N/A';
+  const diff = Math.floor((end - start) / 1000);
+  const h = Math.floor(diff / 3600);
+  const m = Math.floor((diff % 3600) / 60);
+  const s = diff % 60;
+  return `${h}h ${m}m ${s}s`;
+}
+
+function getSpeedZoneDistribution() {
+  const total = speedZones.zone1 + speedZones.zone2 + speedZones.zone3 + speedZones.zone4;
+  if (total === 0) return "N/A";
+  const p = (n) => ((n / total) * 100).toFixed(1) + "%";
+  return `
+    0–25 km/h: ${p(speedZones.zone1)}<br/>
+    25–40 km/h: ${p(speedZones.zone2)}<br/>
+    40–60 km/h: ${p(speedZones.zone3)}<br/>
+    60+ km/h: ${p(speedZones.zone4)}
+  `;
+}
+
+function showRideReport() {
+  const speeds = log.map(e => parseFloat(e.split(",")[2])).filter(Boolean);
+  const leanAngles = log.map(e => parseFloat(e.split(",")[5])).filter(Boolean);
+  const totalSpeed = speeds.reduce((a, b) => a + b, 0);
+  const avgSpeed = (totalSpeed / speeds.length || 0).toFixed(1);
+  const maxSpeed = Math.max(...speeds, 0).toFixed(1);
+  const maxLean = Math.max(...leanAngles, 0).toFixed(1);
+
+  const reportHtml = `
+    <p><strong>Start Time:</strong> ${rideStartTime?.toLocaleTimeString() || 'N/A'}</p>
+    <p><strong>End Time:</strong> ${rideEndTime?.toLocaleTimeString() || 'N/A'}</p>
+    <p><strong>Duration:</strong> ${getDurationString(rideStartTime, rideEndTime)}</p>
+    <p><strong>Start Location:</strong> ${startLatLng?.join(", ") || 'N/A'}</p>
+    <p><strong>End Location:</strong> ${lastLatLng?.join(", ") || 'N/A'}</p>
+    <p><strong>Data Points Logged:</strong> ${log.length}</p>
+    <p><strong>Average Speed:</strong> ${avgSpeed} km/h</p>
+    <p><strong>Max Speed:</strong> ${maxSpeed} km/h</p>
+    <p><strong>Max Lean Angle:</strong> ${maxLean}°</p>
+    <p><strong>Grip Quality Summary:</strong> ${getGripSummary()}</p>
+    <p><strong>Speed Zone Distribution:</strong><br/>${getSpeedZoneDistribution()}</p>
+  `;
+
+  document.getElementById("pdfContent").innerHTML = reportHtml;
+  document.getElementById("rideModal").style.display = "block";
+}
+
+function closeModal() {
+  document.getElementById("rideModal").style.display = "none";
+}
+
+function downloadCSV() {
+  let csvContent = "data:text/csv;charset=utf-8,Latitude,Longitude,Speed,Grip,Altitude,Lean\n";
+  log.forEach(row => {
+    csvContent += row + "\n";
+  });
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", "ride_data.csv");
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function downloadPDF() {
+  const element = document.getElementById("pdfContent");
+  const opt = {
+    margin: 0.5,
+    filename: 'ride_report.pdf',
+    html2canvas: { scale: 2 },
+    jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+  };
+  html2pdf().from(element).set(opt).save();
+}
+
+function shareReport() {
+  const text = document.getElementById("pdfContent").innerText;
+  if (navigator.share) {
+    navigator.share({
+      title: "Ride Report",
+      text: text
     });
-    return `Good: ${gripCounts.Good}, Medium: ${gripCounts.Medium}, Low: ${gripCounts.Low}`;
+  } else {
+    alert("Sharing not supported on this device.");
   }
-
-  function getSpeedZoneDistribution() {
-    const total = speedZones.zone1 + speedZones.zone2 + speedZones.zone3 + speedZones.zone4;
-    if (total === 0) return "N/A";
-    const p = (n) => ((n / total) * 100).toFixed(1) + "%";
-    return `
-      0–25 km/h: ${p(speedZones.zone1)}<br/>
-      25–40 km/h: ${p(speedZones.zone2)}<br/>
-      40–60 km/h: ${p(speedZones.zone3)}<br/>
-      60+ km/h: ${p(speedZones.zone4)}
-    `;
-  }
-
-  function showRideReport() {
-    const reportDiv = document.getElementById("rideReport");
-    reportDiv.innerHTML = `
-      <div id="pdfContent">
-        <h2>🏁 Ride Summary</h2>
-        <p><strong>Start Time:</strong> ${rideStartTime?.toLocaleTimeString() || 'N/A'}</p>
-        <p><strong>End Time:</strong> ${rideEndTime?.toLocaleTimeString() || 'N/A'}</p>
-        <p><strong>Ride Duration:</strong> ${getDurationString(rideStartTime, rideEndTime)}</p>
-        <p><strong>Start Location:</strong> ${startLatLng?.join(", ") || 'N/A'}</p>
-        <p><strong>End Location:</strong> ${lastLatLng?.join(", ") || 'N/A'}</p>
-        <p><strong>Max Speed:</strong> ${Math.round(maxSpeed)} km/h</p>
-        <p><strong>Avg Speed:</strong> ${speedCount > 0 ? Math.round(speedSum / speedCount) : 0} km/h</p>
-        <p><strong>Total Distance:</strong> ${totalDistance.toFixed(2)} km</p>
-        <p><strong>Max Lean Left:</strong> ${Math.abs(maxLeanLeft).toFixed(1)}°</p>
-        <p><strong>Max Lean Right:</strong> ${Math.abs(maxLeanRight).toFixed(1)}°</p>
-        <p><strong>Grip Quality:</strong> ${getGripSummary()}</p>
-        <p><strong>Speed Zone Distribution:</strong><br/>${getSpeedZoneDistribution()}</p>
-        <p><strong>Data Points Logged:</strong> ${log.length}</p>
-        <button onclick="saveReportAsPDF()">Save as PDF</button>
-        <button onclick="document.getElementById('rideReport').style.display='none'">Close</button>
-      </div>
-    `;
-    reportDiv.style.display = "block";
-  }
-
-  function saveReportAsPDF() {
-    const element = document.getElementById("pdfContent");
-    html2pdf().from(element).save("Ride_Summary.pdf");
-  }
+}
 </script>
 
   <!-- Full script block with enhancements -->
