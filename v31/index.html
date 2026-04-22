@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>🏍️ Ride Tracker Pro</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
+<style>
+body { margin:0; font-family:Segoe UI; background:#0d1117; color:white; }
+h1 { text-align:center; color:#58a6ff; }
+
+.controls {
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:10px;
+  margin:10px;
+}
+
+button {
+  padding:8px 12px;
+  border:none;
+  border-radius:5px;
+  background:#238636;
+  color:white;
+  cursor:pointer;
+}
+
+#map { height:55vh; }
+
+#riderList, #rideList {
+  padding:10px;
+  font-size:14px;
+}
+
+.section-title {
+  margin-top:10px;
+  color:#58a6ff;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🏍️ Ride Tracker Pro</h1>
+
+<div class="controls">
+  <button onclick="createRide()">Start Ride</button>
+  <button onclick="shareRide()">Share Ride</button>
+  <button onclick="leaveRide()">Leave Ride</button>
+  <button onclick="endRide()">End Ride</button>
+</div>
+
+<div id="map"></div>
+
+<div class="section-title">👥 Riders</div>
+<div id="riderList"></div>
+
+<div class="section-title">🛰️ Ongoing Rides</div>
+<div id="rideList"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+
+/* FIREBASE CONFIG */
+const firebaseConfig = {
+  apiKey: "AIzaSyBz8Mmgcoi8GMH-YqNSRanTd8GRrK5vV6M",
+  authDomain: "bike-ride-7fa01.firebaseapp.com",
+  databaseURL: "https://bike-ride-7fa01-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "bike-ride-7fa01",
+  storageBucket: "bike-ride-7fa01.firebasestorage.app",
+  messagingSenderId: "98802522518",
+  appId: "1:98802522518:web:5e53b78fa812615ee525b7"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+/* MAP */
+let map = L.map('map').setView([9.9312, 76.2673], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+/* GLOBALS */
+let userId = "rider_" + Math.random().toString(36).substr(2, 9);
+let groupId = null;
+let riderName = null;
+let watchId = null;
+
+const markers = {};
+const polylines = {};
+let myPath = [];
+
+/* CREATE RIDE */
+function createRide() {
+  groupId = "ride_" + Math.floor(Math.random() * 100000);
+
+  db.ref(`groups/${groupId}`).set({
+    status: "active",
+    createdAt: Date.now()
+  });
+
+  alert("Ride created!");
+}
+
+/* SHARE */
+function shareRide() {
+  if (!groupId) return alert("Start a ride first");
+
+  const link = `${window.location.origin}${window.location.pathname}?group=${groupId}`;
+
+  navigator.clipboard.writeText(link);
+
+  alert("Share this link:\n" + link);
+}
+
+/* AUTO JOIN */
+window.onload = () => {
+  loadActiveRides();
+
+  const params = new URLSearchParams(window.location.search);
+  groupId = params.get("group");
+
+  if (!groupId) return;
+
+  riderName = prompt("Enter your name");
+
+  if (!riderName) {
+    riderName = "Rider_" + Math.floor(Math.random() * 1000);
+  }
+
+  startTracking();
+  listenToGroup();
+};
+
+/* TRACK */
+function startTracking() {
+  watchId = navigator.geolocation.watchPosition((pos) => {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    const speed = (pos.coords.speed || 0) * 3.6;
+
+    myPath.push([lat, lng]);
+
+    db.ref(`groups/${groupId}/riders/${userId}`).set({
+      name: riderName,
+      lat,
+      lng,
+      speed,
+      path: myPath,
+      timestamp: Date.now()
+    });
+
+  }, console.error, { enableHighAccuracy: true });
+}
+
+/* LISTEN GROUP */
+function listenToGroup() {
+  db.ref(`groups/${groupId}`).on("value", (snap) => {
+    const data = snap.val();
+    if (!data) return;
+
+    if (data.status === "closed") {
+      alert("Ride ended");
+      stopTracking();
+      clearMap();
+      return;
+    }
+
+    const riders = data.riders || {};
+
+    for (let id in riders) {
+      const r = riders[id];
+
+      if (!markers[id]) {
+        markers[id] = L.marker([r.lat, r.lng])
+          .addTo(map)
+          .bindTooltip(r.name, { permanent: true });
+      } else {
+        markers[id].setLatLng([r.lat, r.lng]);
+      }
+
+      if (polylines[id]) map.removeLayer(polylines[id]);
+
+      polylines[id] = L.polyline(r.path || [], {
+        color: id === userId ? "lime" : "cyan"
+      }).addTo(map);
+    }
+
+    updateRiderList(riders);
+  });
+}
+
+/* RIDER LIST */
+function updateRiderList(riders) {
+  const div = document.getElementById("riderList");
+  div.innerHTML = "";
+
+  for (let id in riders) {
+    const r = riders[id];
+    div.innerHTML += `👤 ${r.name} - ${Math.round(r.speed)} km/h <br>`;
+  }
+}
+
+/* LEAVE */
+function leaveRide() {
+  if (!groupId) return;
+
+  db.ref(`groups/${groupId}/riders/${userId}`).remove();
+  stopTracking();
+  alert("Left ride");
+}
+
+/* END RIDE */
+function endRide() {
+  if (!groupId) return;
+
+  db.ref(`groups/${groupId}/status`).set("closed");
+  alert("Ride ended");
+}
+
+/* STOP */
+function stopTracking() {
+  if (watchId) navigator.geolocation.clearWatch(watchId);
+}
+
+/* CLEAR MAP */
+function clearMap() {
+  for (let id in markers) map.removeLayer(markers[id]);
+  for (let id in polylines) map.removeLayer(polylines[id]);
+}
+
+/* LOAD ALL ACTIVE RIDES */
+function loadActiveRides() {
+  db.ref("groups").on("value", (snap) => {
+    const data = snap.val();
+    const div = document.getElementById("rideList");
+
+    div.innerHTML = "";
+
+    if (!data) return;
+
+    for (let id in data) {
+      if (data[id].status === "active") {
+        div.innerHTML += `
+          🟢 ${id}
+          <button onclick="forceClose('${id}')">Close</button><br>
+        `;
+      }
+    }
+  });
+}
+
+/* FORCE CLOSE */
+function forceClose(id) {
+  db.ref(`groups/${id}/status`).set("closed");
+}
+
+</script>
+
+</body>
+</html>
