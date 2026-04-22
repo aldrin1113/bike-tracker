@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🏍️ Group Ride Tracker</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: #0d1117;
+      color: white;
+    }
+
+    h1 {
+      text-align: center;
+      color: #58a6ff;
+      margin: 10px 0;
+    }
+
+    .controls {
+      display: flex;
+      gap: 5px;
+      padding: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    input {
+      padding: 6px;
+      border-radius: 5px;
+      border: none;
+      outline: none;
+    }
+
+    button {
+      padding: 6px 10px;
+      border: none;
+      border-radius: 5px;
+      background: #238636;
+      color: white;
+      cursor: pointer;
+    }
+
+    #map {
+      height: 65vh;
+      width: 100%;
+    }
+
+    #riderList {
+      padding: 10px;
+      font-size: 14px;
+    }
+
+    .rider {
+      padding: 5px;
+      border-bottom: 1px solid #333;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>🏍️ Group Ride Tracker</h1>
+
+<div class="controls">
+  <input type="text" id="riderName" placeholder="Your Name"/>
+  <input type="text" id="groupId" placeholder="Group ID"/>
+  <button onclick="joinRide()">Join</button>
+  <button onclick="leaveRide()">Leave</button>
+</div>
+
+<div id="map"></div>
+<div id="riderList"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+
+/* 🔥 YOUR FIREBASE CONFIG (READY) */
+const firebaseConfig = {
+  apiKey: "AIzaSyBz8Mmgcoi8GMH-YqNSRanTd8GRrK5vV6M",
+  authDomain: "bike-ride-7fa01.firebaseapp.com",
+  databaseURL: "https://bike-ride-7fa01-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "bike-ride-7fa01",
+  storageBucket: "bike-ride-7fa01.firebasestorage.app",
+  messagingSenderId: "98802522518",
+  appId: "1:98802522518:web:5e53b78fa812615ee525b7",
+  measurementId: "G-YKPKMQ7W5S"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+/* MAP INIT */
+let map = L.map('map').setView([9.9312, 76.2673], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+/* GLOBALS */
+let userId = null;
+let groupId = null;
+let riderName = null;
+let watchId = null;
+
+const markers = {};
+const polylines = {};
+let myPath = [];
+
+/* JOIN RIDE */
+function joinRide() {
+  riderName = document.getElementById("riderName").value;
+  groupId = document.getElementById("groupId").value;
+
+  if (!riderName || !groupId) {
+    alert("Enter name & group ID");
+    return;
+  }
+
+  userId = "rider_" + Math.random().toString(36).substr(2, 9);
+
+  startTracking();
+  listenToGroup();
+}
+
+/* LEAVE */
+function leaveRide() {
+  if (userId && groupId) {
+    db.ref(`groups/${groupId}/${userId}`).remove();
+  }
+
+  if (watchId) navigator.geolocation.clearWatch(watchId);
+
+  alert("Left ride");
+}
+
+/* TRACK LOCATION */
+function startTracking() {
+  watchId = navigator.geolocation.watchPosition((pos) => {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    const speed = (pos.coords.speed || 0) * 3.6;
+
+    myPath.push([lat, lng]);
+
+    db.ref(`groups/${groupId}/${userId}`).set({
+      name: riderName,
+      lat,
+      lng,
+      speed,
+      path: myPath,
+      timestamp: Date.now()
+    });
+
+  }, console.error, {
+    enableHighAccuracy: true
+  });
+}
+
+/* LISTEN TO GROUP */
+function listenToGroup() {
+  db.ref(`groups/${groupId}`).on("value", (snap) => {
+    const riders = snap.val();
+    if (!riders) return;
+
+    for (let id in riders) {
+      const r = riders[id];
+
+      /* MARKER */
+      if (!markers[id]) {
+        markers[id] = L.marker([r.lat, r.lng])
+          .addTo(map)
+          .bindTooltip(r.name, { permanent: true });
+      } else {
+        markers[id].setLatLng([r.lat, r.lng]);
+      }
+
+      /* PATH */
+      if (polylines[id]) {
+        map.removeLayer(polylines[id]);
+      }
+
+      polylines[id] = L.polyline(r.path || [], {
+        color: id === userId ? "lime" : "cyan"
+      }).addTo(map);
+    }
+
+    updateRiderList(riders);
+  });
+}
+
+/* RIDER LIST */
+function updateRiderList(riders) {
+  const list = document.getElementById("riderList");
+  list.innerHTML = "";
+
+  for (let id in riders) {
+    const r = riders[id];
+
+    const div = document.createElement("div");
+    div.className = "rider";
+
+    const you = id === userId ? "(You)" : "";
+
+    div.innerHTML = `
+      👤 ${r.name} ${you} <br>
+      🏁 Speed: ${Math.round(r.speed)} km/h
+    `;
+
+    list.appendChild(div);
+  }
+}
+
+</script>
+
+</body>
+</html>
