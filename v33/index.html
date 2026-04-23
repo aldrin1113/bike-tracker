@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>🏍️ Ride Tracker Pro v2.1</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
+<style>
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: #0d1117;
+  color: white;
+}
+
+h1 {
+  text-align: center;
+  font-size: 18px;
+  padding: 10px;
+  margin: 0;
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(10px);
+}
+
+#map {
+  height: 60vh;
+}
+
+.controls {
+  position: fixed;
+  bottom: 15px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  z-index: 999;
+}
+
+button {
+  padding: 10px 14px;
+  border-radius: 25px;
+  border: none;
+  font-size: 13px;
+  background: linear-gradient(135deg, #238636, #2ea043);
+  color: white;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+}
+
+.panel {
+  margin: 10px;
+  padding: 10px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+}
+
+.section-title {
+  color: #58a6ff;
+  margin-bottom: 5px;
+}
+
+.rider {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.rider:last-child {
+  border-bottom: none;
+}
+
+.speed {
+  font-weight: bold;
+  color: #58a6ff;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🏍️ Ride Tracker Pro</h1>
+
+<div id="map"></div>
+
+<div class="panel">
+  <div class="section-title">👥 Riders</div>
+  <div id="riderList"></div>
+</div>
+
+<div class="panel">
+  <div class="section-title">🛰️ Ongoing Rides</div>
+  <div id="rideList"></div>
+</div>
+
+<div class="controls">
+  <button onclick="createRide()">Start</button>
+  <button onclick="shareRide()">Share</button>
+  <button onclick="leaveRide()">Leave</button>
+  <button onclick="endRide()">End</button>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+
+/* 🔥 FIREBASE CONFIG */
+const firebaseConfig = {
+  apiKey: "AIzaSyBz8Mmgcoi8GMH-YqNSRanTd8GRrK5vV6M",
+  authDomain: "bike-ride-7fa01.firebaseapp.com",
+  databaseURL: "https://bike-ride-7fa01-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "bike-ride-7fa01",
+  storageBucket: "bike-ride-7fa01.firebasestorage.app",
+  messagingSenderId: "98802522518",
+  appId: "1:98802522518:web:5e53b78fa812615ee525b7"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+/* MAP */
+let map = L.map('map').setView([9.9312, 76.2673], 13);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OpenStreetMap & CARTO',
+  subdomains: 'abcd',
+  maxZoom: 20
+}).addTo(map);
+
+/* GLOBALS */
+let userId = "rider_" + Math.random().toString(36).substr(2, 9);
+let groupId = null;
+let riderName = null;
+let watchId = null;
+let isViewer = false;
+
+const markers = {};
+const polylines = {};
+let myPath = [];
+
+/* 🔋 WAKE LOCK */
+let wakeLock = null;
+
+async function enableWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      console.log("Wake Lock ON");
+
+      wakeLock.addEventListener('release', () => {
+        console.log("Wake Lock released");
+      });
+    }
+  } catch (err) {
+    console.error("Wake Lock error:", err);
+  }
+}
+
+function disableWakeLock() {
+  if (wakeLock) {
+    wakeLock.release();
+    wakeLock = null;
+  }
+}
+
+/* Re-enable when returning to screen */
+document.addEventListener("visibilitychange", () => {
+  if (wakeLock !== null && document.visibilityState === "visible") {
+    enableWakeLock();
+  }
+});
+
+/* CREATE RIDE */
+function createRide() {
+  groupId = "ride_" + Math.floor(Math.random() * 100000);
+
+  db.ref(`groups/${groupId}`).set({
+    status: "active",
+    createdAt: Date.now()
+  });
+
+  alert("Ride created!");
+}
+
+/* SHARE */
+function shareRide() {
+  if (!groupId) return alert("Start a ride first");
+
+  const link = `${window.location.origin}${window.location.pathname}?group=${groupId}`;
+  navigator.clipboard.writeText(link);
+
+  alert("Link copied!");
+}
+
+/* AUTO JOIN */
+window.onload = () => {
+  loadActiveRides();
+
+  const params = new URLSearchParams(window.location.search);
+  groupId = params.get("group");
+
+  if (!groupId) return;
+
+  riderName = prompt("Enter your name (Cancel = view only)");
+
+  if (!riderName) {
+    isViewer = true;
+    listenToGroup();
+  } else {
+    startTracking();
+    listenToGroup();
+  }
+};
+
+/* TRACK */
+function startTracking() {
+  enableWakeLock(); // 🔥 KEEP SCREEN ON
+
+  watchId = navigator.geolocation.watchPosition((pos) => {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    const speed = (pos.coords.speed || 0) * 3.6;
+
+    myPath.push([lat, lng]);
+
+    map.setView([lat, lng], 15);
+
+    db.ref(`groups/${groupId}/riders/${userId}`).set({
+      name: riderName,
+      lat,
+      lng,
+      speed,
+      path: myPath,
+      timestamp: Date.now()
+    });
+
+  }, console.error, { enableHighAccuracy: true });
+}
+
+/* LISTEN */
+function listenToGroup() {
+  db.ref(`groups/${groupId}`).on("value", (snap) => {
+    const data = snap.val();
+    if (!data) return;
+
+    if (data.status === "closed") {
+      alert("Ride ended");
+      stopTracking();
+      clearMap();
+      return;
+    }
+
+    const riders = data.riders || {};
+
+    for (let id in riders) {
+      const r = riders[id];
+
+      let color = r
