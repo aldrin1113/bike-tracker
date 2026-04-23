@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>🏍️ Ride Tracker Pro v2.1</title>
+<title>🏍️ Ride Tracker Pro</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
@@ -11,25 +11,8 @@
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
 
 <style>
-body {
-  margin: 0;
-  font-family: 'Segoe UI', sans-serif;
-  background: #0d1117;
-  color: white;
-}
-
-h1 {
-  text-align: center;
-  font-size: 18px;
-  padding: 10px;
-  margin: 0;
-  background: rgba(255,255,255,0.05);
-  backdrop-filter: blur(10px);
-}
-
-#map {
-  height: 60vh;
-}
+body { margin:0; background:#0d1117; color:white; font-family:sans-serif; }
+#map { height:60vh; }
 
 .controls {
   position: fixed;
@@ -45,56 +28,32 @@ button {
   padding: 10px 14px;
   border-radius: 25px;
   border: none;
-  font-size: 13px;
-  background: linear-gradient(135deg, #238636, #2ea043);
+  background: #238636;
   color: white;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.4);
 }
 
 .panel {
   margin: 10px;
   padding: 10px;
   background: rgba(255,255,255,0.05);
-  border-radius: 12px;
-  backdrop-filter: blur(10px);
-}
-
-.section-title {
-  color: #58a6ff;
-  margin-bottom: 5px;
-}
-
-.rider {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-}
-
-.rider:last-child {
-  border-bottom: none;
-}
-
-.speed {
-  font-weight: bold;
-  color: #58a6ff;
+  border-radius: 10px;
 }
 </style>
 </head>
 
 <body>
 
-<h1>🏍️ Ride Tracker Pro</h1>
+<h2 style="text-align:center;">🏍️ Ride Tracker</h2>
 
 <div id="map"></div>
 
 <div class="panel">
-  <div class="section-title">👥 Riders</div>
+  <b>Riders</b>
   <div id="riderList"></div>
 </div>
 
 <div class="panel">
-  <div class="section-title">🛰️ Ongoing Rides</div>
+  <b>Active Rides</b>
   <div id="rideList"></div>
 </div>
 
@@ -109,7 +68,7 @@ button {
 
 <script>
 
-/* 🔥 FIREBASE CONFIG */
+/* 🔥 YOUR FIREBASE CONFIG */
 const firebaseConfig = {
   apiKey: "AIzaSyBz8Mmgcoi8GMH-YqNSRanTd8GRrK5vV6M",
   authDomain: "bike-ride-7fa01.firebaseapp.com",
@@ -126,54 +85,35 @@ const db = firebase.database();
 /* MAP */
 let map = L.map('map').setView([9.9312, 76.2673], 13);
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; OpenStreetMap & CARTO',
-  subdomains: 'abcd',
-  maxZoom: 20
-}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
+.addTo(map);
 
 /* GLOBALS */
 let userId = "rider_" + Math.random().toString(36).substr(2, 9);
 let groupId = null;
 let riderName = null;
 let watchId = null;
-let isViewer = false;
 
 const markers = {};
 const polylines = {};
 let myPath = [];
 
-/* 🔋 WAKE LOCK */
+/* WAKE LOCK */
 let wakeLock = null;
 
 async function enableWakeLock() {
   try {
     if ('wakeLock' in navigator) {
       wakeLock = await navigator.wakeLock.request('screen');
-      console.log("Wake Lock ON");
-
-      wakeLock.addEventListener('release', () => {
-        console.log("Wake Lock released");
-      });
     }
-  } catch (err) {
-    console.error("Wake Lock error:", err);
+  } catch(e) {
+    console.log("WakeLock not supported");
   }
 }
 
 function disableWakeLock() {
-  if (wakeLock) {
-    wakeLock.release();
-    wakeLock = null;
-  }
+  if (wakeLock) wakeLock.release();
 }
-
-/* Re-enable when returning to screen */
-document.addEventListener("visibilitychange", () => {
-  if (wakeLock !== null && document.visibilityState === "visible") {
-    enableWakeLock();
-  }
-});
 
 /* CREATE RIDE */
 function createRide() {
@@ -184,21 +124,22 @@ function createRide() {
     createdAt: Date.now()
   });
 
-  alert("Ride created!");
+  alert("Ride created");
 }
 
 /* SHARE */
 function shareRide() {
-  if (!groupId) return alert("Start a ride first");
+  if (!groupId) return alert("Start ride first");
 
   const link = `${window.location.origin}${window.location.pathname}?group=${groupId}`;
   navigator.clipboard.writeText(link);
 
-  alert("Link copied!");
+  alert("Link copied");
 }
 
 /* AUTO JOIN */
 window.onload = () => {
+
   loadActiveRides();
 
   const params = new URLSearchParams(window.location.search);
@@ -206,10 +147,9 @@ window.onload = () => {
 
   if (!groupId) return;
 
-  riderName = prompt("Enter your name (Cancel = view only)");
+  riderName = prompt("Enter name (cancel = view)");
 
   if (!riderName) {
-    isViewer = true;
     listenToGroup();
   } else {
     startTracking();
@@ -219,9 +159,10 @@ window.onload = () => {
 
 /* TRACK */
 function startTracking() {
-  enableWakeLock(); // 🔥 KEEP SCREEN ON
+  enableWakeLock();
 
   watchId = navigator.geolocation.watchPosition((pos) => {
+
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
     const speed = (pos.coords.speed || 0) * 3.6;
@@ -235,29 +176,96 @@ function startTracking() {
       lat,
       lng,
       speed,
-      path: myPath,
-      timestamp: Date.now()
+      path: myPath
     });
 
-  }, console.error, { enableHighAccuracy: true });
+  }, (err)=>{
+    alert("Enable location permission!");
+  }, { enableHighAccuracy: true });
 }
 
 /* LISTEN */
 function listenToGroup() {
   db.ref(`groups/${groupId}`).on("value", (snap) => {
+
     const data = snap.val();
     if (!data) return;
-
-    if (data.status === "closed") {
-      alert("Ride ended");
-      stopTracking();
-      clearMap();
-      return;
-    }
 
     const riders = data.riders || {};
 
     for (let id in riders) {
       const r = riders[id];
 
-      let color = r
+      if (!markers[id]) {
+        markers[id] = L.circleMarker([r.lat, r.lng], {
+          radius: 8,
+          color: "lime"
+        }).addTo(map);
+      } else {
+        markers[id].setLatLng([r.lat, r.lng]);
+      }
+
+      if (polylines[id]) map.removeLayer(polylines[id]);
+
+      polylines[id] = L.polyline(r.path || [], {
+        color: "cyan"
+      }).addTo(map);
+    }
+
+    updateRiders(riders);
+  });
+}
+
+/* RIDERS */
+function updateRiders(riders) {
+  const div = document.getElementById("riderList");
+  div.innerHTML = "";
+
+  for (let id in riders) {
+    div.innerHTML += `${riders[id].name} - ${Math.round(riders[id].speed)} km/h <br>`;
+  }
+}
+
+/* LEAVE */
+function leaveRide() {
+  if (!groupId) return;
+
+  db.ref(`groups/${groupId}/riders/${userId}`).remove();
+  stopTracking();
+}
+
+/* END */
+function endRide() {
+  if (!groupId) return;
+
+  db.ref(`groups/${groupId}/status`).set("closed");
+}
+
+/* STOP */
+function stopTracking() {
+  if (watchId) navigator.geolocation.clearWatch(watchId);
+  disableWakeLock();
+}
+
+/* ACTIVE RIDES */
+function loadActiveRides() {
+  db.ref("groups").on("value", (snap) => {
+    const data = snap.val();
+    const div = document.getElementById("rideList");
+
+    div.innerHTML = "";
+
+    if (!data) return;
+
+    for (let id in data) {
+      if (data[id].status === "active") {
+        div.innerHTML += `🟢 ${id}<br>`;
+      }
+    }
+  });
+}
+
+</script>
+
+</body>
+</html>
